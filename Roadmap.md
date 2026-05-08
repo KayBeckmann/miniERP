@@ -11,9 +11,9 @@ Aufträge, Ausgangs- und Eingangsrechnungen, Stundenerfassung, Materialstamm, Au
 | Datenbank      | PostgreSQL 16                                                                |
 | Frontend       | Vue 3 + Vite + TypeScript + Pinia + Vue Router + **Vuetify 3**               |
 | Auth           | JWT (Access + Refresh), 1 User initial, Hashing mit `argon2`                 |
-| Mandanten      | 2 Mandanten (`Bau`, `Hufbearbeitung`), je eigene Nummernkreise und Templates |
-| PDF            | WeasyPrint **oder** Gotenberg-Sidecar (HTTP, HTML/Jinja → PDF). Default: WeasyPrint im Backend; Gotenberg, falls komplexere Layouts nötig. |
-| Dokumentablage | Paperless-ngx (REST) ODER Nextcloud (WebDAV), konfigurierbar; optional MinIO-Bucket als zusätzliche Backend-Option für PDF-Originale |
+| Mandanten      | 2 Sparten (`Bau`, `Hufbearbeitung`) **eines** Einzelunternehmens; je eigene Nummernkreise und Templates, **steuerlich gemeinsamer Topf** |
+| PDF            | **Gotenberg** als Sidecar-Container (HTTP, HTML/Jinja → PDF/A); Backend rendert Jinja, schickt HTML an Gotenberg, bekommt PDF zurück |
+| Dokumentablage | **Paperless-ngx als primärer Belegspeicher** (REST, OCR, Custom Fields, Webhooks); Nextcloud optional als Consume-Ordner / Briefpapier-Share. MinIO bleibt nur als späterer Adapter im Backlog. |
 | Automation     | n8n via Webhooks ins Backend (keine Geschäftslogik in n8n; n8n macht **nicht** die REST-API) |
 | LLM            | Ollama (lokal), Backend-Service als alleiniger Konsument; OpenAI-Fallback nur per Config-Schalter, default aus |
 | OCR            | Tesseract (für Fotos/Scans ohne Textlayer) → Text → Ollama-Strukturierung (JSON) |
@@ -57,8 +57,14 @@ miniERP/
 ## 2. Datenmodell (Entwurf)
 
 ### Stammdaten
-- **Tenant**: `id`, `code` (`bau` / `huf`), `name`, `address`, `tax_id`, `iban`, `logo_path`,
-  `invoice_number_prefix`, `quote_number_prefix`, `pdf_template`.
+- **Tenant** (= Sparte des einen Einzelunternehmens): `id`, `code` (`bau` / `huf`), `name`,
+  `address`, `iban`, `logo_path`, `invoice_number_prefix`, `quote_number_prefix`,
+  `pdf_template`.
+  - **Hinweis:** USt-ID und §19-Status liegen **nicht** am Tenant, sondern am übergeordneten
+    `Company`-Datensatz, weil steuerlich beide Sparten ein Unternehmen sind.
+- **Company** (Singleton): `id`, `legal_name`, `owner_name`, `address`, `tax_id`,
+  `vat_id?`, `is_small_business` (§19 UStG, gilt fürs **Gesamtunternehmen**), `bank_iban`,
+  `bank_bic`. Wird von beiden Sparten geteilt.
 - **User**: `id`, `email`, `password_hash`, `role`, `default_tenant_id`.
 - **Customer**: `id`, `tenant_id`, `customer_no`, `kind` (Privat/Geschäft), `name`, `contact`,
   `address`, `email`, `phone`, `tax_id`, `notes`, `created_at`.
@@ -203,23 +209,44 @@ Jede Phase endet mit einem **lauffähigen Stand** (build grün, manueller Smoket
 - [ ] PDF analog zu Angeboten, eigene Templates, `pdf_sha256` festschreiben
 - [ ] **E-Rechnung Kern, nicht Backlog**: XRechnung (UBL) und ZUGFeRD 2.x abhängig vom
       Customer-Flag erzeugen; mehrere Zahlungen je Rechnung (`Payment` 1:n)
-- [ ] Zahlungseingang manuell erfassen, OP-Liste, Mahnstufen-Felder vorbereiten
+- [ ] Zahlungseingang **manuell** erfassen (FinTS folgt später, Schema bleibt vorbereitet),
+      OP-Liste, Mahnstufen-Felder vorbereiten
 
 ### Phase 5 – Lieferantenrechnungen (≈ 1–2 Tage)
-- [ ] Upload-Form (auch Foto vom Smartphone), Speicherung in Paperless-ngx **oder**
-      Nextcloud **oder** MinIO (Adapter-Pattern, Default Paperless)
-- [ ] Zuordnung zu Auftrag und/oder Position
-- [ ] **OCR-Pipeline**:
-      - PDFs mit Textlayer: Text direkt entnehmen
-      - Fotos / textlose PDFs: **Tesseract** vorgeschaltet
-      - Text → Ollama-Service → strukturiertes JSON (Lieferant, Datum, Rechnungsnummer,
-        Netto/USt/Brutto, Fälligkeit) → Vorschlag im Formular, User bestätigt
-- [ ] Trigger-Variante: Paperless erkennt neuen Beleg → n8n-Workflow → Backend-Endpoint
+- [ ] Upload-Form (auch Foto vom Smartphone) → Backend reicht direkt an
+      **Paperless-ngx** durch (`POST /api/documents/post_document/`), Rückgabe ist
+      `document_id`, im miniERP gespeichert in `Document.external_id`
+- [ ] OCR macht **Paperless** (eingebaut) — Volltext per `/api/documents/{id}/`
+- [ ] **Strukturierung via Ollama**: Volltext aus Paperless → Ollama-Service →
+      JSON (Lieferant, Datum, Rechnungsnummer, Netto/USt/Brutto, Fälligkeit) →
+      Vorschlag im Formular, User bestätigt
+- [ ] Tesseract nur als Fallback, falls Paperless-OCR nicht ausreicht (z. B. extern
+      eingespielte Belege ohne OCR)
+- [ ] Paperless-Webhook bei neuem Dokument → n8n → Backend-Endpoint
+      (`/supplier-invoices/from-paperless/{document_id}`) erzeugt Entwurf automatisch
+- [ ] Custom Fields in Paperless setzen: `auftrag_no`, `rechnung_no` (rückverweisend)
+- [ ] Nextcloud-Adapter bleibt im Code als zweite Implementierung des `DocumentStore`-Interfaces,
+      ist aber **nicht** der Default
 
-### Phase 6 – Auswertungen & Dashboard (≈ 1 Tag)
+### Phase 6 – Auswertungen & Steuerberater-Export (≈ 1–2 Tage)
 - [ ] Offene Angebote, offene Rechnungen, fällige Lieferantenrechnungen
 - [ ] Marge pro Auftrag, Stunden pro Kunde/Monat
-- [ ] USt-Vorschau für den Steuerberater (CSV-/PDF-Export)
+- [ ] **Steuerberater-Export** (zentral, weil das die laufende Schnittstelle ist):
+      - Periodenwahl (Monat / Quartal / Jahr)
+      - **Pro Sparte aufgeschlüsselt**, aber als ein Export-Bundle
+        (Bau und Huf gehören demselben Unternehmen, der Steuerberater erkennt die
+        Trennung über die Spalte `tenant_code`)
+      - Zip-Bundle mit:
+        - `ausgangsrechnungen.csv` (Datum, Rechnungs-Nr., Sparte, Kunde, Netto,
+          USt-Satz, USt, Brutto, Zahlung am, Status)
+        - `eingangsrechnungen.csv` (Datum, Lieferant, externe Nr., Sparte/Auftrag,
+          Netto, USt, Brutto, Zahlung am, Paperless-Doc-ID)
+        - `gutschriften.csv`
+        - `zahlungen.csv`
+        - `belege/` Ordner mit allen PDFs aus dem Zeitraum
+        - `manifest.json` mit Hashes (für GoBD-Nachvollziehbarkeit)
+      - Optional: DATEV-CSV-Format (im Backlog, sobald der StB sagt was er bevorzugt)
+- [ ] USt-Vorschau (Soll-USt fällig, Vorsteuer aus Eingangsrechnungen)
 
 ### Phase 7 – LLM-Komfort (≈ 1–2 Tage)
 - [ ] Service `services/llm.py` als einziger Ollama-Client
@@ -231,17 +258,24 @@ Jede Phase endet mit einem **lauffähigen Stand** (build grün, manueller Smoket
 - [ ] Prompt-Templates versioniert in `backend/app/services/prompts/`
 
 ### Phase 8 – Härtung & Finanzschnittstellen
-- [ ] Backups (pg_dump nightly, Dokumente in Paperless/Nextcloud/MinIO bleiben dort)
+- [ ] Backups (pg_dump nightly, Dokumente in Paperless bleiben dort gesichert)
 - [ ] Rollen-/Berechtigungslogik, falls Mehrbenutzer kommen
 - [ ] **FinTS/HBCI-Anbindung** für Zahlungsabgleich (Kontoumsätze → Match auf
-      `Payment.bank_ref`); abhängig von Entscheidung „jetzt oder später“
-- [ ] DATEV-Export der Rechnungen + EÜR-Vorschau
+      `Payment.bank_ref`). **Bewusst hier**, nicht früher — Phase 4 erfasst
+      Zahlungen so lange manuell.
+- [ ] DATEV-CSV-Variante des Steuerberater-Exports (sobald StB-Format bekannt)
+- [ ] EÜR-Vorschau auf Basis der Exportdaten
 - [ ] Peppol-Versand für E-Rechnungen (optional)
 
 ## 4. Out of Scope (vorerst)
 - Kassensystem, Lagerverwaltung mit Beständen, Filialen
 - Mehrwährungsfähigkeit
 - Personalabrechnung
+- **Mieteinnahmen / Vermietung & Verpachtung** — gehört steuerlich nicht ins
+  Gewerbe und wird nicht im miniERP geführt. Der Steuerberater erhält die
+  Mieten weiterhin außerhalb von miniERP.
+- **Buchhaltung im engeren Sinn** (Konten, Belegbuchung, EÜR-Erstellung) —
+  miniERP liefert nur den sauber getrennten Export, der Steuerberater bucht.
 - **Mobile Native App** — bewusst nicht: Vue3 + Vuetify wird als **PWA** ausgeliefert
   (Handy für Stundenerfassung & Belegfoto, Tablet beim Kunden, Desktop für Buchhaltung).
   Native App lohnt erst bei echtem Hardware-Bedarf (z. B. NFC).
@@ -258,18 +292,30 @@ Jede Phase endet mit einem **lauffähigen Stand** (build grün, manueller Smoket
 - **E-Rechnung-Validierung**: Erzeugte XRechnung/ZUGFeRD gegen offizielle Validatoren testen
   (z. B. KoSIT-Validator) bevor scharf geschaltet.
 
-## 6. Offene Entscheidungen (vor / während Phase 0)
-1. **§19 UStG (Kleinunternehmerregelung)** — pro Sparte einzeln zu klären:
-   - Bauunternehmen: vermutlich regelbesteuert (B2B).
-   - Hufbearbeitung: häufig Kleinunternehmer.
-   Bestimmt USt-Anzeige, Pflichttext im PDF, Verhalten der `vat_rate`-Felder.
-2. **FinTS/HBCI-Anbindung** jetzt mitdenken (Phase 4/8) oder später nachrüsten?
-   Beeinflusst nur Felder in `Payment` (`bank_ref`), das Schema bleibt vorbereitet.
-3. **Ablage-Default**: Paperless-ngx vs. Nextcloud vs. MinIO — was läuft schon, was soll laufen?
-4. **PDF-Engine**: WeasyPrint im Backend (einfach) vs. Gotenberg-Sidecar (mächtiger).
-   Default WeasyPrint, Wechsel später möglich.
+## 6. Getroffene Entscheidungen
+
+1. **Rechtsform & USt**: Einzelunternehmerin, beide Sparten gehören steuerlich zu **einem**
+   Unternehmen. §19-UStG-Status gilt fürs Gesamtunternehmen (am `Company`-Datensatz),
+   **nicht** pro Sparte. Bei B2B im Baubereich realistischerweise regelbesteuert.
+   → Im PDF wird der Hinweistext zentral aus `Company.is_small_business` abgeleitet.
+2. **Mieteinnahmen**: separate Einkunftsart (V+V), liegen außerhalb von miniERP.
+   Wird **nicht** mit erfasst.
+3. **Steuerberater-Export**: Nicht-Ziel ist DATEV/EÜR-Buchung im miniERP. Ziel ist ein
+   sauber getrennter, exportierbarer Auszug pro Periode (siehe neue Phase 6).
+4. **FinTS/HBCI**: Schema wird vorbereitet (`Payment.bank_ref`, Felder in `Company`),
+   Implementierung erfolgt **später**. Phase 4 erfasst Zahlungen vorerst manuell.
+5. **Belegablage**: **Paperless-ngx** ist Default-Speicher. Begründung: REST-API mit
+   strukturierten Metadaten (Korrespondent, Dokumenttyp, Tags, Custom Fields), eingebaute
+   OCR, Volltextsuche, Webhooks bei neuen Dokumenten. Nextcloud bleibt verfügbar als
+   Consume-Ordner / Briefpapier-Share, ist aber nicht primärer Belegspeicher.
+6. **PDF-Engine**: **Gotenberg** als Sidecar. Backend rendert Jinja-HTML, Gotenberg liefert
+   PDF/A zurück. WeasyPrint entfällt damit.
 
 ## 7. Nächste Schritte
-1. Roadmap reviewen, offene Entscheidungen aus Abschnitt 6 beantworten.
-2. Briefpapier-Daten und je ein Beispielangebot/-rechnung pro Sparte sammeln (für PDF-Templates).
-3. Phase 0 umsetzen.
+1. Mit dem Steuerberater abstimmen, welches Export-Format ideal ist
+   (CSV-Spalten, ggf. DATEV) — beeinflusst die Felder in Phase 6.
+2. Briefpapier-Daten und je ein Beispielangebot/-rechnung pro Sparte sammeln
+   (für die Gotenberg-Templates).
+3. Paperless-ngx auf API-Token vorbereiten und Custom Fields anlegen
+   (`auftrag_no`, `rechnung_no`, `sparte`).
+4. Phase 0 umsetzen.

@@ -16,8 +16,8 @@ teurer als der Nutzen. miniERP setzt deshalb auf:
 
 - **Freitext-first Positionen**: Beschreibung + Menge + Preis genügt; ein
   Materialstamm wächst optional aus tatsächlich wiederkehrenden Einträgen.
-- **Zwei Mandanten** (`bau`, `huf`) auf einer Codebasis – eigene
-  Nummernkreise, Templates und Auswertungen.
+- **Zwei Sparten** (`bau`, `huf`) eines Einzelunternehmens – eigene
+  Nummernkreise, Templates und Auswertungen, steuerlich aber ein Topf.
 - **LLM-Unterstützung lokal** über Ollama: Stichworte zu Positionen
   ausformulieren, Lieferantenrechnungen strukturieren, Texte für
   Anschreiben/Mahnungen entwerfen.
@@ -31,10 +31,10 @@ teurer als der Nutzen. miniERP setzt deshalb auf:
 | Backend        | FastAPI · SQLAlchemy 2 · Alembic · Pydantic v2                |
 | Datenbank      | PostgreSQL 16                                                 |
 | Frontend       | Vue 3 · Vite · TypeScript · Pinia · Vuetify 3 (PWA)           |
-| PDF            | WeasyPrint (Default) oder Gotenberg-Sidecar                   |
-| OCR            | Tesseract → Ollama-Strukturierung                             |
+| PDF            | Gotenberg-Sidecar (HTML/Jinja → PDF/A)                        |
+| OCR            | Paperless-ngx (eingebaut), Tesseract als Fallback             |
 | LLM            | Ollama (lokal), z. B. `llama3.1` / `qwen2.5` / `mistral`      |
-| Dokumentablage | Paperless-ngx · Nextcloud · MinIO (Adapter, konfigurierbar)   |
+| Dokumentablage | Paperless-ngx (Default), Nextcloud als zweiter Adapter        |
 | Automation     | n8n via Webhooks (keine Geschäftslogik in n8n)                |
 | Container      | docker-compose                                                |
 
@@ -44,7 +44,8 @@ teurer als der Nutzen. miniERP setzt deshalb auf:
 - Angebote → Aufträge → Auftragsbestätigung → Rechnung (Teil/Abschlag/Schluss) → Gutschrift
 - Stundenerfassung (mobil-tauglich)
 - Lieferantenrechnungen mit OCR-Vorbefüllung und Auftragszuordnung
-- Auswertungen: Offene Posten, Margen pro Auftrag, Stunden, USt-Vorschau
+- Auswertungen und **Steuerberater-Export** (Zip mit CSVs + Belegen, pro Sparte
+  aufgeschlüsselt). Mieteinnahmen liegen außerhalb des Systems.
 - Spätere Ausbaustufen: FinTS-Zahlungsabgleich, DATEV-Export, Peppol-Versand
 
 Genauer Phasenplan und Datenmodell stehen in der [`Roadmap.md`](./Roadmap.md).
