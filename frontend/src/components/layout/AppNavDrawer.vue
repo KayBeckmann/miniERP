@@ -11,39 +11,33 @@
 
     <v-list density="compact" nav>
       <v-list-item
-        v-for="item in navItems"
-        :key="item.route"
-        :prepend-icon="item.icon"
-        :title="item.title"
-        :to="item.route"
-        :active="route.name === item.name"
+        prepend-icon="mdi-view-dashboard"
+        title="Dashboard"
+        to="/dashboard"
         color="primary"
       />
+
+      <v-list-subheader>Stammdaten</v-list-subheader>
+      <v-list-item prepend-icon="mdi-account-group" title="Kunden" to="/customers" color="primary" />
+      <v-list-item prepend-icon="mdi-truck-delivery-outline" title="Lieferanten" to="/suppliers" color="primary" />
+      <v-list-item prepend-icon="mdi-package-variant" title="Materialstamm" to="/materials" color="primary" />
+
+      <v-list-subheader>Belege</v-list-subheader>
+      <v-list-item prepend-icon="mdi-file-document-outline" title="Angebote" to="/quotes" color="primary" />
+      <v-list-item prepend-icon="mdi-clipboard-list-outline" title="Aufträge" to="/orders" color="primary" />
+      <v-list-item prepend-icon="mdi-receipt-text-outline" title="Rechnungen" to="/invoices" color="primary" />
+
+      <v-list-subheader>Erfassung</v-list-subheader>
+      <v-list-item prepend-icon="mdi-clock-outline" title="Stundenerfassung" to="/time" color="primary" />
+      <v-list-item prepend-icon="mdi-file-import-outline" title="Eingangsrechnungen" to="/supplier-invoices" color="primary" />
+
+      <v-list-subheader>Auswertung</v-list-subheader>
+      <v-list-item prepend-icon="mdi-chart-bar" title="Auswertungen" to="/reports" color="primary" />
     </v-list>
   </v-navigation-drawer>
 </template>
 
 <script setup lang="ts">
-import { useRoute } from 'vue-router'
-
 defineProps<{ open: boolean }>()
 defineEmits<{ 'update:open': [value: boolean] }>()
-
-const route = useRoute()
-
-const navItems = [
-  { name: 'dashboard', route: '/dashboard', icon: 'mdi-view-dashboard', title: 'Dashboard' },
-  { name: 'customers', route: '/customers', icon: 'mdi-account-group', title: 'Kunden' },
-  { name: 'quotes', route: '/quotes', icon: 'mdi-file-document', title: 'Angebote' },
-  { name: 'orders', route: '/orders', icon: 'mdi-clipboard-list', title: 'Aufträge' },
-  { name: 'invoices', route: '/invoices', icon: 'mdi-receipt', title: 'Rechnungen' },
-  { name: 'time', route: '/time', icon: 'mdi-clock-outline', title: 'Stundenerfassung' },
-  {
-    name: 'supplier-invoices',
-    route: '/supplier-invoices',
-    icon: 'mdi-truck-delivery',
-    title: 'Eingangsrechnungen',
-  },
-  { name: 'reports', route: '/reports', icon: 'mdi-chart-bar', title: 'Auswertungen' },
-]
 </script>
