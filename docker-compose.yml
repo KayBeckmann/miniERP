@@ -31,8 +31,6 @@ services:
         condition: service_healthy
     networks:
       - internal
-    # Phase 0: Backend-Image noch nicht gebaut; auskommentiert bis Phase 0 abgeschlossen
-    profiles: ["backend"]
 
   frontend:
     build: ./frontend

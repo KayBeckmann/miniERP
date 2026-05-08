@@ -1,5 +1,5 @@
 <template>
-  <v-navigation-drawer v-model="open">
+  <v-navigation-drawer :model-value="open" @update:model-value="$emit('update:open', $event)">
     <v-list-item
       prepend-icon="mdi-home-city"
       title="miniERP"
