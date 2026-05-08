@@ -170,12 +170,12 @@ GoBD-Eckpunkte, die wir umsetzen:
 
 Jede Phase endet mit einem **lauffähigen Stand** (build grün, manueller Smoketest).
 
-### Phase 0 – Projektgerüst (≈ 0,5 Tage)
-- [ ] `docker-compose.yml` mit `postgres`, `backend`, `frontend` (n8n/ollama optional aus)
-- [ ] FastAPI-Skeleton mit `/health`, JWT-Login (1 Seed-User), Settings via `pydantic-settings`
-- [ ] Alembic initialisiert, `Tenant` + `User` als erste Migration, Seed `bau` + `huf`
-- [ ] Vue 3 + Vuetify 3 + Vite-Skeleton mit Login-Seite und Mandantenwahl im Header
-- [ ] `ruff`, `black`, `eslint`, `prettier`, GitHub-Actions-Workflow (lint + tests)
+### Phase 0 – Projektgerüst ✅ abgeschlossen (2026-05-08)
+- [x] `docker-compose.yml` mit `postgres`, `backend`, `frontend` (n8n/ollama optional aus)
+- [x] FastAPI-Skeleton mit `/health`, JWT-Login (1 Seed-User), Settings via `pydantic-settings`
+- [x] Alembic initialisiert, `Tenant` + `User` als erste Migration, Seed `bau` + `huf`
+- [x] Vue 3 + Vuetify 3 + Vite-Skeleton mit Login-Seite und Mandantenwahl im Header
+- [x] `ruff`, `black`, `eslint`, `prettier`, GitHub-Actions-Workflow (lint + tests)
 
 ### Phase 1 – Stammdaten (≈ 1–2 Tage)
 - [ ] CRUD: Customer (mit `is_business`, `e_invoice_format`, `leitweg_id?`), Supplier
@@ -192,7 +192,7 @@ Jede Phase endet mit einem **lauffähigen Stand** (build grün, manueller Smoket
 - [ ] Optionaler Material-Lookup (nur falls Stammartikel vorhanden)
 - [ ] Berechnung Netto/USt/Brutto pro Position + Summen serverseitig (single source of truth)
 - [ ] Nummernkreise pro Mandant + Jahr + Belegart (`NumberSequence`, transaktional)
-- [ ] PDF-Template `Bau` und `Huf`, WeasyPrint, Vorschau im Browser
+- [ ] PDF-Template `Bau` und `Huf`, **Gotenberg** (HTML/Jinja → PDF/A), Vorschau im Browser
 - [ ] Status-Workflow (draft → sent → accepted/declined → in Auftrag gewandelt)
 - [ ] Versand per Mail (SMTP) als optionaler Schritt
 
