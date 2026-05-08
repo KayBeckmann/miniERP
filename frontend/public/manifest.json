@@ -1,0 +1,16 @@
+{
+  "name": "miniERP",
+  "short_name": "miniERP",
+  "description": "ERP für Bau & Hufbearbeitung",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1976D2",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
