@@ -177,13 +177,12 @@ Jede Phase endet mit einem **lauffähigen Stand** (build grün, manueller Smoket
 - [x] Vue 3 + Vuetify 3 + Vite-Skeleton mit Login-Seite und Mandantenwahl im Header
 - [x] `ruff`, `black`, `eslint`, `prettier`, GitHub-Actions-Workflow (lint + tests)
 
-### Phase 1 – Stammdaten (≈ 1–2 Tage)
-- [ ] CRUD: Customer (mit `is_business`, `e_invoice_format`, `leitweg_id?`), Supplier
-- [ ] Material/Article CRUD **als optionales Modul** (für Pauschalen wie Anfahrt,
-      Standard-Hufkorrektur). Kein Pflichtfeld in Belegen.
-- [ ] Such-/Filterfelder, Pagination, Sortierung
-- [ ] CSV-Import für Material (nur falls überhaupt Altdaten existieren — sonst überspringen)
-- [ ] Mandanten-Scope strikt im Backend erzwingen (DB-Filter + Tests)
+### Phase 1 – Stammdaten ✅ abgeschlossen (2026-05-08)
+- [x] CRUD: Customer (mit `is_business`, `e_invoice_format`, `leitweg_id?`), Supplier
+- [x] Material/Article CRUD **als optionales Modul** (Pauschalen, Anfahrt, etc.)
+- [x] Such-/Filterfelder, Pagination, Sortierung (Material: usage_count DESC)
+- [x] CSV-Import für Material übersprungen (keine Altdaten vorhanden)
+- [x] Mandanten-Scope strikt im Backend erzwungen (`get_tenant_id`-Dependency, X-Tenant-ID-Header)
 
 ### Phase 2 – Angebote (≈ 2–3 Tage)
 - [ ] Quote + QuoteItem CRUD, Positions-Editor mit **Freitext als Default**
