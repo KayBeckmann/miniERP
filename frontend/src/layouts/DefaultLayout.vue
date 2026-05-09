@@ -22,6 +22,15 @@
         <router-view />
       </v-container>
     </v-main>
+
+    <!-- Global Snackbar -->
+    <v-snackbar v-model="snackbar.show" :color="snackbar.type" :timeout="snackbar.timeout"
+      location="bottom right" rounded="lg">
+      {{ snackbar.message }}
+      <template #actions>
+        <v-btn variant="text" @click="snackbar.show = false"><v-icon>mdi-close</v-icon></v-btn>
+      </template>
+    </v-snackbar>
   </v-app>
 </template>
 
@@ -29,10 +38,12 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useSnackbarStore } from '@/stores/snackbar'
 import AppNavDrawer from '@/components/layout/AppNavDrawer.vue'
 import TenantSwitcher from '@/components/layout/TenantSwitcher.vue'
 
 const drawerOpen = ref(true)
 const auth = useAuthStore()
+const snackbar = useSnackbarStore()
 const router = useRouter()
 </script>

@@ -72,9 +72,11 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { quotesApi, type Quote, STATUS_LABELS, STATUS_COLORS } from '@/api/quotes'
 import { useAuthStore } from '@/stores/auth'
+import { useSnackbarStore } from '@/stores/snackbar'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 
 const auth = useAuthStore()
+const snackbar = useSnackbarStore()
 
 const router = useRouter()
 const LIMIT = 25
@@ -115,7 +117,9 @@ const fmtEur = (v: string) => `${Number(v).toFixed(2)} €`
 const totalItems = (q: Quote) => q.groups.reduce((s, g) => s + g.items.length, 0) + q.items.length
 
 function openEditor(id: number) { router.push({ name: 'quote-edit', params: { id } }) }
-async function doDuplicate(q: Quote) { try { await quotesApi.duplicate(q.id); load() } catch {} }
+async function doDuplicate(q: Quote) {
+  try { await quotesApi.duplicate(q.id); snackbar.notify('Angebot kopiert'); load() } catch {}
+}
 
 async function downloadPdf(q: Quote) {
   const res = await fetch(`/api/v1/quotes/${q.id}/pdf`, {
@@ -135,7 +139,12 @@ function openToOrder(q: Quote) { toOrderTarget.value = q; orderTitle.value = '';
 async function doConvertToOrder() {
   if (!toOrderTarget.value) return
   converting.value = true
-  try { await quotesApi.toOrder(toOrderTarget.value.id, orderTitle.value || undefined); toOrderDialog.value = false; router.push({ name: 'orders' }) }
+  try {
+    const order = await quotesApi.toOrder(toOrderTarget.value.id, orderTitle.value || undefined)
+    toOrderDialog.value = false
+    snackbar.notify(`Auftrag ${order.order_no} erstellt`)
+    router.push({ name: 'orders' })
+  }
   catch (e) { console.error(e) }
   finally { converting.value = false }
 }

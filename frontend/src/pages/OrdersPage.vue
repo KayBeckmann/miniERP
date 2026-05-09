@@ -164,9 +164,11 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ordersApi, type Order, type TimeEntry, STATUS_LABELS, STATUS_COLORS } from '@/api/orders'
 import { customersApi, type Customer } from '@/api/stammdaten'
+import { useSnackbarStore } from '@/stores/snackbar'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 
 const router = useRouter()
+const snackbar = useSnackbarStore()
 
 const LIMIT = 25
 const items = ref<Order[]>([])
@@ -279,13 +281,14 @@ async function doCreateInvoice() {
   if (!toInvoiceTarget.value) return
   creatingInvoice.value = true; invoiceError.value = ''
   try {
-    await ordersApi.toInvoice(toInvoiceTarget.value.id, {
+    const inv = await ordersApi.toInvoice(toInvoiceTarget.value.id, {
       invoice_date: invoiceForm.value.invoice_date,
       due_date: invoiceForm.value.due_date || null,
       kind: invoiceForm.value.kind,
       copy_items: invoiceForm.value.copy_items,
     })
     toInvoiceDialog.value = false
+    snackbar.notify(`Rechnung ${inv.invoice_no} erstellt`)
     router.push({ name: 'invoices' })
   } catch (e) { invoiceError.value = e instanceof Error ? e.message : 'Fehler beim Erstellen' }
   finally { creatingInvoice.value = false }
