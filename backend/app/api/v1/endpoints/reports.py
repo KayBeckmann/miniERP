@@ -56,6 +56,28 @@ async def dashboard(
     )
     month_hours = sum(float(e.hours) for e in month_hours_result.scalars().all())
 
+    # Recent activity
+    recent_quotes = (await db.execute(
+        select(Quote).where(Quote.tenant_id == tenant_id)
+        .order_by(Quote.created_at.desc()).limit(5)
+    )).scalars().all()
+
+    recent_invoices = (await db.execute(
+        select(Invoice).options(selectinload(Invoice.customer))
+        .where(Invoice.tenant_id == tenant_id)
+        .order_by(Invoice.created_at.desc()).limit(5)
+    )).scalars().all()
+
+    # Week hours
+    week_start = today - __import__("datetime").timedelta(days=today.weekday())
+    week_hours_result = await db.execute(
+        select(TimeEntry).join(Order).where(
+            Order.tenant_id == tenant_id,
+            TimeEntry.entry_date >= week_start,
+        )
+    )
+    week_hours = sum(float(e.hours) for e in week_hours_result.scalars().all())
+
     return {
         "quotes_open": len(quotes_open),
         "orders_open": len(orders_open),
@@ -63,6 +85,18 @@ async def dashboard(
         "invoices_open_total": str(sum(Decimal(i.total) - Decimal(i.paid_amount) for i in invoices_open)),
         "invoices_overdue": len(invoices_overdue),
         "hours_this_month": round(month_hours, 2),
+        "hours_this_week": round(week_hours, 2),
+        "recent_quotes": [
+            {"id": q.id, "quote_no": q.quote_no, "status": q.status, "total": str(q.total)}
+            for q in recent_quotes
+        ],
+        "recent_invoices": [
+            {
+                "id": i.id, "invoice_no": i.invoice_no, "status": i.status,
+                "total": str(i.total), "customer": i.customer.name if i.customer else "",
+            }
+            for i in recent_invoices
+        ],
     }
 
 
