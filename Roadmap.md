@@ -246,14 +246,15 @@ Jede Phase endet mit einem **lauffähigen Stand** (build grün, manueller Smoket
       - Optional: DATEV-CSV-Format (im Backlog, sobald der StB sagt was er bevorzugt)
 - [x] USt-Vorschau (Soll-USt fällig, Vorsteuer aus Eingangsrechnungen)
 
-### Phase 7 – LLM-Komfort (≈ 1–2 Tage)
-- [ ] Service `services/llm.py` als einziger Ollama-Client
-- [ ] Use-Case 1: **„Stichworte → ausformulierte Position“** (ersetzt Stammartikel im Alltag)
-- [ ] Use-Case 2: „Freitext-Beschreibung → mehrere Positionen“ (Vorschlag, Mensch bestätigt)
+### Phase 7 – LLM-Komfort ✅ Basis abgeschlossen (2026-05-09)
+- [x] `services/ollama.py` erweitert um `suggest_position()` + `split_to_positions()`
+- [x] Use-Case 1: **„Stichworte → ausformulierte Position”** — `POST /llm/suggest-position`
+- [x] Use-Case 2: „Freitext → mehrere Positionen” — `POST /llm/split-positions`
+- [x] KI-Assistent-Widget im QuoteEditorPage (Stichwörter + Aufteilen, graceful wenn offline)
+- [x] `GET /llm/models` — verfügbare Ollama-Modelle
 - [ ] Use-Case 3: Mahn-/Anschreiben-Entwurf
 - [ ] Use-Case 4: Hufbefund strukturieren (für Mandant `huf`)
 - [ ] Use-Case 5: Embeddings auf `position_history` für Ähnlichkeitsvorschläge
-- [ ] Prompt-Templates versioniert in `backend/app/services/prompts/`
 
 ### Phase 8 – Härtung & Finanzschnittstellen
 - [ ] Backups (pg_dump nightly, Dokumente in Paperless bleiben dort gesichert)

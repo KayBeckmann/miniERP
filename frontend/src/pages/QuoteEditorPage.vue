@@ -30,6 +30,25 @@
           </v-form>
         </v-card>
 
+        <!-- KI-Assistent -->
+        <v-card class="pa-4 mb-4">
+          <div class="text-subtitle-2 mb-2 d-flex align-center">
+            <v-icon size="small" color="purple" class="mr-1">mdi-brain</v-icon>
+            KI-Assistent
+          </div>
+          <v-textarea v-model="llmKeywords" label="Stichwörter / Freitext" rows="2"
+            variant="outlined" density="compact" class="mb-2" hint="z.B. 'Fliesenarbeiten Bad 12m²'" />
+          <div class="d-flex gap-2">
+            <v-btn size="small" color="purple" variant="tonal" :loading="llmLoading" @click="llmSuggest">
+              Position
+            </v-btn>
+            <v-btn size="small" color="purple" variant="tonal" :loading="llmLoading" @click="llmSplit">
+              Aufteilen
+            </v-btn>
+          </div>
+          <v-alert v-if="llmError" type="warning" variant="tonal" density="compact" class="mt-2">{{ llmError }}</v-alert>
+        </v-card>
+
         <!-- Positionsverlauf -->
         <v-card class="pa-4">
           <div class="text-subtitle-2 mb-2 d-flex align-center">
@@ -167,6 +186,7 @@ import {
   STATUS_COLORS, STATUS_LABELS, TRANSITIONS, type QuoteStatus,
 } from '@/api/quotes'
 import { customersApi, type Customer, materialsApi, type Material } from '@/api/stammdaten'
+import { api } from '@/api/client'
 
 const route = useRoute()
 const router = useRouter()
@@ -243,6 +263,63 @@ function addItemFromHistory(h: PositionHistory, gi: number) {
   if (gi === -1) form.value.items.push(item)
   else if (gi >= 0) form.value.groups[gi]?.items.push(item)
   else form.value.items.push(item)
+}
+
+// ── LLM-Assistent ───────────────────────────────────────────────────────────
+const llmKeywords = ref('')
+const llmLoading = ref(false)
+const llmError = ref('')
+
+async function llmSuggest() {
+  if (!llmKeywords.value.trim()) return
+  llmLoading.value = true; llmError.value = ''
+  try {
+    const res = await api.post<{ description: string; unit: string; unit_price?: string; vat_rate?: string }>(
+      '/llm/suggest-position',
+      { keywords: llmKeywords.value, context: 'bau' },
+    )
+    const item: LocalItem = {
+      description: res.description,
+      qty: '1',
+      unit: res.unit ?? 'Stk',
+      unit_price: res.unit_price ?? '0.00',
+      discount_pct: '0.00',
+      vat_rate: res.vat_rate ?? '19.00',
+      material_id: null,
+    }
+    if (activeGroupIdx.value === -1) form.value.items.push(item)
+    else form.value.groups[activeGroupIdx.value]?.items.push(item)
+    llmKeywords.value = ''
+  } catch {
+    llmError.value = 'KI nicht verfügbar — Ollama läuft?'
+  } finally { llmLoading.value = false }
+}
+
+async function llmSplit() {
+  if (!llmKeywords.value.trim()) return
+  llmLoading.value = true; llmError.value = ''
+  try {
+    const items = await api.post<Array<{ description: string; qty: string; unit: string; unit_price: string; vat_rate: string }>>(
+      '/llm/split-positions',
+      { text: llmKeywords.value, context: 'bau' },
+    )
+    for (const r of items) {
+      const item: LocalItem = {
+        description: r.description,
+        qty: r.qty ?? '1',
+        unit: r.unit ?? 'Stk',
+        unit_price: r.unit_price ?? '0.00',
+        discount_pct: '0.00',
+        vat_rate: r.vat_rate ?? '19.00',
+        material_id: null,
+      }
+      if (activeGroupIdx.value === -1) form.value.items.push(item)
+      else form.value.groups[activeGroupIdx.value]?.items.push(item)
+    }
+    llmKeywords.value = ''
+  } catch {
+    llmError.value = 'KI nicht verfügbar — Ollama läuft?'
+  } finally { llmLoading.value = false }
 }
 
 // ── Material Picker ─────────────────────────────────────────────────────────
