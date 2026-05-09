@@ -53,6 +53,10 @@
                 <v-icon>mdi-pencil</v-icon>
                 <v-tooltip activator="parent">Bearbeiten / Bestätigen</v-tooltip>
               </v-btn>
+              <v-btn v-if="si.status === 'confirmed'" icon size="small" variant="text" color="success" @click="markPaid(si)">
+                <v-icon>mdi-cash-check</v-icon>
+                <v-tooltip activator="parent">Als bezahlt markieren</v-tooltip>
+              </v-btn>
               <v-btn v-if="si.paperless_document_id" icon size="small" variant="text" @click="openInPaperless(si)">
                 <v-icon>mdi-open-in-new</v-icon>
                 <v-tooltip activator="parent">In Paperless öffnen</v-tooltip>
@@ -352,5 +356,15 @@ async function doDelete() {
   if (!deleteTarget.value) return
   try { await api.delete(`/supplier-invoices/${deleteTarget.value.id}`); confirmRef.value.close(); load() }
   catch { confirmRef.value.close() }
+}
+
+async function markPaid(si: SupplierInvoice) {
+  try {
+    await api.patch(`/supplier-invoices/${si.id}`, {
+      status: 'paid',
+      paid_at: new Date().toISOString(),
+    })
+    load()
+  } catch {}
 }
 </script>
