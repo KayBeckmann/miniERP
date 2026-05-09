@@ -36,3 +36,23 @@ def pdf_path(quote_no: str) -> Path:
     p = Path("/app/uploads/quotes")
     p.mkdir(parents=True, exist_ok=True)
     return p / f"{quote_no}.pdf"
+
+
+async def render_invoice_pdf(invoice, customer, tenant) -> bytes:
+    env = _env()
+    template = env.get_template("invoice.html")
+    html = template.render(invoice=invoice, customer=customer, tenant=tenant)
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(
+            f"{settings.GOTENBERG_URL}/forms/chromium/convert/html",
+            files={"files": ("index.html", html.encode("utf-8"), "text/html")},
+        )
+    if response.status_code != 200:
+        raise RuntimeError(f"Gotenberg error {response.status_code}")
+    return response.content
+
+
+def invoice_pdf_path(invoice_no: str) -> Path:
+    p = Path("/app/uploads/invoices")
+    p.mkdir(parents=True, exist_ok=True)
+    return p / f"{invoice_no}.pdf"

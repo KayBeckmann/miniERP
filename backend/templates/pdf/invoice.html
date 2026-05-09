@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; font-size: 11pt; color: #222; }
+  .page { padding: 20mm 20mm 20mm 25mm; }
+  .header { display: flex; justify-content: space-between; margin-bottom: 10mm; }
+  .company-name { font-size: 18pt; font-weight: bold; color: #1976D2; }
+  .company-info { font-size: 9pt; color: #555; margin-top: 2mm; line-height: 1.5; }
+  .doc-title { font-size: 16pt; font-weight: bold; margin: 8mm 0 2mm; }
+  .customer-box { border-left: 3px solid #1976D2; padding-left: 4mm; margin-bottom: 8mm; font-size: 10pt; line-height: 1.6; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 6mm; font-size: 10pt; }
+  th { background: #1976D2; color: white; padding: 2mm 3mm; text-align: left; font-size: 9pt; }
+  td { padding: 1.5mm 3mm; border-bottom: 1px solid #e0e0e0; vertical-align: top; }
+  tr:nth-child(even) td { background: #f9f9f9; }
+  .num { text-align: right; }
+  .totals { margin-left: auto; width: 80mm; border-top: 2px solid #1976D2; }
+  .totals td { padding: 1mm 3mm; border-bottom: none; }
+  .totals .grand { font-weight: bold; font-size: 12pt; border-top: 1px solid #ccc; }
+  .payment-info { background: #e8f5e9; padding: 3mm; border-radius: 3px; margin-top: 6mm; font-size: 10pt; }
+  .notes { margin-top: 6mm; font-size: 10pt; line-height: 1.5; }
+  .footer { margin-top: 10mm; font-size: 8pt; color: #888; border-top: 1px solid #eee; padding-top: 3mm; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="header">
+    <div>
+      <div class="company-name">{{ tenant.name }}</div>
+      <div class="company-info">{{ tenant.address | replace('\n', '<br>') | safe }}</div>
+    </div>
+    <div style="text-align:right; font-size:9pt; color:#555;">
+      <div><strong>Rechnungsnr.:</strong> {{ invoice.invoice_no }}</div>
+      <div><strong>Datum:</strong> {{ invoice.invoice_date.strftime('%d.%m.%Y') }}</div>
+      {% if invoice.due_date %}<div><strong>Fällig bis:</strong> {{ invoice.due_date.strftime('%d.%m.%Y') }}</div>{% endif %}
+    </div>
+  </div>
+
+  <div class="doc-title">Rechnung {{ invoice.invoice_no }}</div>
+
+  <div class="customer-box">
+    <strong>{{ customer.name }}</strong><br>
+    {% if customer.contact %}<span style="color:#555;">{{ customer.contact }}</span><br>{% endif %}
+    {% if customer.address %}{{ customer.address | replace('\n', '<br>') | safe }}<br>{% endif %}
+    {% if customer.email %}{{ customer.email }}<br>{% endif %}
+    {% if customer.phone %}{{ customer.phone }}{% endif %}
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:5%">Pos.</th>
+        <th style="width:40%">Beschreibung</th>
+        <th style="width:8%" class="num">Menge</th>
+        <th style="width:8%">Einh.</th>
+        <th style="width:10%" class="num">EP (€)</th>
+        <th style="width:8%" class="num">Rab.%</th>
+        <th style="width:8%" class="num">MwSt.%</th>
+        <th style="width:13%" class="num">Gesamt (€)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in invoice.items %}
+      <tr>
+        <td>{{ item.position }}</td>
+        <td>{{ item.description }}</td>
+        <td class="num">{{ "%.3f"|format(item.qty|float) }}</td>
+        <td>{{ item.unit }}</td>
+        <td class="num">{{ "%.2f"|format(item.unit_price|float) }}</td>
+        <td class="num">{% if item.discount_pct %}{{ "%.1f"|format(item.discount_pct|float) }}{% else %}—{% endif %}</td>
+        <td class="num">{{ "%.0f"|format(item.vat_rate|float) }}</td>
+        <td class="num"><strong>{{ "%.2f"|format(item.line_total|float) }}</strong></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <table class="totals">
+    <tr><td>Nettobetrag</td><td class="num">{{ "%.2f"|format(invoice.subtotal|float) }} €</td></tr>
+    <tr><td>Mehrwertsteuer</td><td class="num">{{ "%.2f"|format(invoice.vat_total|float) }} €</td></tr>
+    <tr class="grand"><td><strong>Gesamtbetrag</strong></td><td class="num"><strong>{{ "%.2f"|format(invoice.total|float) }} €</strong></td></tr>
+    {% if invoice.paid_amount > 0 %}
+    <tr><td style="color:#388e3c;">Bereits gezahlt</td><td class="num" style="color:#388e3c;">{{ "%.2f"|format(invoice.paid_amount|float) }} €</td></tr>
+    <tr><td><strong>Offener Betrag</strong></td><td class="num"><strong>{{ "%.2f"|format((invoice.total|float - invoice.paid_amount|float)) }} €</strong></td></tr>
+    {% endif %}
+  </table>
+
+  {% if tenant.iban %}
+  <div class="payment-info">
+    <strong>Bitte überweisen Sie den Betrag bis {{ invoice.due_date.strftime('%d.%m.%Y') if invoice.due_date else '14 Tage nach Rechnungsdatum' }} auf:</strong><br>
+    IBAN: {{ tenant.iban }}{% if tenant.name %} · Empfänger: {{ tenant.name }}{% endif %}
+    · Verwendungszweck: {{ invoice.invoice_no }}
+  </div>
+  {% endif %}
+
+  {% if invoice.notes %}
+  <div class="notes"><strong>Hinweise:</strong><br>{{ invoice.notes | replace('\n', '<br>') | safe }}</div>
+  {% endif %}
+
+  <div class="footer">
+    {{ tenant.name }}{% if tenant.iban %} · IBAN: {{ tenant.iban }}{% endif %} · {{ invoice.invoice_no }}
+  </div>
+</div>
+</body>
+</html>
