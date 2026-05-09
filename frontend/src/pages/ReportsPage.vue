@@ -64,6 +64,27 @@
           </v-card-text>
         </v-card>
       </v-col>
+
+      <!-- DATEV-Export -->
+      <v-col cols="12" md="6">
+        <v-card class="mb-4">
+          <v-card-title>DATEV-Buchungsjournal</v-card-title>
+          <v-card-text>
+            <p class="text-body-2 text-medium-emphasis mb-3">
+              Vereinfachter Buchungsjournal-Export im DATEV-EXTF-Format für den Steuerberater.
+            </p>
+            <v-row dense>
+              <v-col cols="6"><v-text-field v-model="datevFrom" type="date" label="Von" variant="outlined" density="compact" /></v-col>
+              <v-col cols="6"><v-text-field v-model="datevTo" type="date" label="Bis" variant="outlined" density="compact" /></v-col>
+              <v-col cols="12">
+                <v-btn color="secondary" :loading="datevExporting" prepend-icon="mdi-download" @click="doDatevExport">
+                  DATEV herunterladen
+                </v-btn>
+              </v-col>
+            </v-row>
+          </v-card-text>
+        </v-card>
+      </v-col>
     </v-row>
 
     <!-- EÜR-Vorschau -->
@@ -197,6 +218,32 @@ async function doExport() {
     a.click(); URL.revokeObjectURL(a.href)
   } catch (e) { exportError.value = e instanceof Error ? e.message : 'Export fehlgeschlagen' }
   finally { exporting.value = false }
+}
+
+// ── DATEV-Export ────────────────────────────────────────────────────────────
+const datevFrom = ref(firstOfMonth)
+const datevTo = ref(today)
+const datevExporting = ref(false)
+
+async function doDatevExport() {
+  datevExporting.value = true
+  try {
+    const token = auth.accessToken
+    const tenantId = auth.currentTenant?.id
+    const url = `/api/v1/reports/export/datev?period_from=${datevFrom.value}&period_to=${datevTo.value}`
+    const res = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        ...(tenantId ? { 'X-Tenant-ID': String(tenantId) } : {}),
+      },
+    })
+    if (!res.ok) return
+    const blob = await res.blob()
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `datev_${datevFrom.value}_${datevTo.value}.csv`
+    a.click(); URL.revokeObjectURL(a.href)
+  } finally { datevExporting.value = false }
 }
 
 // ── USt-Vorschau ────────────────────────────────────────────────────────────

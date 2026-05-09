@@ -372,3 +372,61 @@ async def vat_preview(
         "invoices_count": len(invoices),
         "supplier_invoices_count": len(supplier_invoices),
     }
+
+
+@router.get("/export/datev")
+async def export_datev(
+    period_from: date = Query(...),
+    period_to: date = Query(...),
+    tenant_id: int = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+) -> Response:
+    """DATEV-kompatibler Buchungsjournal-Export (vereinfachtes Format für StB-Übergabe)."""
+    tenant = await db.get(Tenant, tenant_id)
+    tenant_code = tenant.code if tenant else "unknown"
+
+    invoices = (await db.execute(
+        select(Invoice).options(selectinload(Invoice.customer))
+        .where(
+            Invoice.tenant_id == tenant_id,
+            Invoice.invoice_date >= period_from,
+            Invoice.invoice_date <= period_to,
+            Invoice.status.notin_(["draft", "cancelled"]),
+        )
+        .order_by(Invoice.invoice_date)
+    )).scalars().all()
+
+    payments = (await db.execute(
+        select(Payment).join(Invoice).where(
+            Invoice.tenant_id == tenant_id,
+            Payment.payment_date >= period_from,
+            Payment.payment_date <= period_to,
+        )
+        .order_by(Payment.payment_date)
+    )).scalars().all()
+
+    buf = io.StringIO()
+    # DATEV-Buchungsexport Header (vereinfacht)
+    buf.write('"EXTF";700;21;"Buchungsstapel";4;')
+    buf.write(f'{datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")}000;')
+    buf.write(f';;;"miniERP";"{tenant_code}";;;;\n')
+    buf.write('"Umsatz (ohne Soll/Haben-Kz)";"Soll/Haben-Kennzeichen";"WKZ Umsatz";"Kurs";')
+    buf.write('"Basis-Umsatz";"WKZ Basis-Umsatz";"Konto";"Gegenkonto (ohne BU-Schlüssel)";')
+    buf.write('"BU-Schlüssel";"Belegdatum";"Belegfeld 1";"Belegfeld 2";"Skonto";"Buchungstext"\n')
+
+    for inv in invoices:
+        customer_name = inv.customer.name[:40] if inv.customer else ""
+        # Erlöskonto: 8400 (19% USt), 8300 (7%), 8000 (steuerfrei) — simplified
+        konto = "8400"
+        kunde_kto = f"10{inv.customer_id:04d}"  # Debitorenkonto
+        d = inv.invoice_date.strftime("%d%m")
+        buf.write(f'"{inv.subtotal}";"S";"EUR";;"";"EUR";"{kunde_kto}";"{konto}";"";')
+        buf.write(f'"{d}";"{inv.invoice_no}";"";"";"AR {customer_name}"\n')
+
+    filename = f"datev_buchungsjournal_{tenant_code}_{period_from}_{period_to}.csv"
+    return Response(
+        content=buf.getvalue().encode("cp1252", errors="replace"),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
