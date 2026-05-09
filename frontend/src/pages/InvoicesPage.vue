@@ -15,6 +15,7 @@
         <thead>
           <tr>
             <th>Rechnungsnr.</th>
+            <th>Kunde</th>
             <th>Art</th>
             <th>Datum</th>
             <th>Fällig</th>
@@ -25,10 +26,11 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-if="loading"><td colspan="8" class="text-center pa-4"><v-progress-circular indeterminate size="24" /></td></tr>
-          <tr v-else-if="!items.length"><td colspan="8" class="text-center pa-4 text-medium-emphasis">Keine Rechnungen</td></tr>
+          <tr v-if="loading"><td colspan="9" class="text-center pa-4"><v-progress-circular indeterminate size="24" /></td></tr>
+          <tr v-else-if="!items.length"><td colspan="9" class="text-center pa-4 text-medium-emphasis">Keine Rechnungen</td></tr>
           <tr v-for="inv in items" :key="inv.id">
             <td><strong>{{ inv.invoice_no }}</strong></td>
+            <td class="text-caption">{{ customerName(inv.customer_id) }}</td>
             <td>{{ KIND_LABELS[inv.kind as InvoiceKind] }}</td>
             <td>{{ fmtDate(inv.invoice_date) }}</td>
             <td :class="isOverdue(inv) ? 'text-error' : ''">{{ inv.due_date ? fmtDate(inv.due_date) : '—' }}</td>
@@ -36,7 +38,9 @@
             <td class="text-right">{{ fmtEur(inv.total) }}</td>
             <td class="text-right" :class="openAmount(inv) > 0 && inv.status !== 'paid' ? 'text-warning font-weight-bold' : ''">{{ fmtEur(openAmount(inv)) }}</td>
             <td class="text-right">
+              <v-btn icon size="small" variant="text" title="PDF" @click="downloadPdf(inv)"><v-icon>mdi-file-pdf-box</v-icon></v-btn>
               <v-btn icon size="small" variant="text" @click="openPayment(inv)" title="Zahlung buchen"><v-icon>mdi-cash-check</v-icon></v-btn>
+              <v-btn v-if="TRANSITIONS[inv.status as InvoiceStatus]?.length" icon size="small" variant="text" title="Status ändern" @click="openStatus(inv)"><v-icon>mdi-state-machine</v-icon></v-btn>
               <v-btn v-if="inv.status === 'draft'" icon size="small" variant="text" color="error" @click="askDelete(inv)"><v-icon>mdi-delete</v-icon></v-btn>
             </td>
           </tr>
@@ -103,6 +107,22 @@
       </v-card>
     </v-dialog>
 
+    <!-- Status Dialog -->
+    <v-dialog v-model="statusDialog" max-width="360">
+      <v-card v-if="statusTarget">
+        <v-card-title>Status ändern — {{ statusTarget.invoice_no }}</v-card-title>
+        <v-card-text>
+          <div class="d-flex gap-2 flex-wrap">
+            <v-btn v-for="s in (TRANSITIONS[statusTarget.status as InvoiceStatus] ?? [])" :key="s"
+              :color="STATUS_COLORS[s]" variant="flat" size="small" @click="applyStatus(s)">
+              {{ STATUS_LABELS[s] }}
+            </v-btn>
+          </div>
+        </v-card-text>
+        <v-card-actions><v-spacer /><v-btn variant="text" @click="statusDialog = false">Schließen</v-btn></v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <ConfirmDialog ref="confirmRef" title="Rechnung löschen?" :message="`Rechnung ${deleteTarget?.invoice_no} löschen?`" @confirm="doDelete" />
   </div>
 </template>
@@ -110,8 +130,11 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import { api } from '@/api/client'
+import { useAuthStore } from '@/stores/auth'
 import { customersApi, type Customer } from '@/api/stammdaten'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+
+const auth = useAuthStore()
 
 type InvoiceStatus = 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled'
 type InvoiceKind = 'final' | 'partial' | 'advance'
@@ -122,6 +145,13 @@ interface Invoice { id: number; invoice_no: string; customer_id: number; order_i
 const STATUS_LABELS: Record<InvoiceStatus, string> = { draft: 'Entwurf', sent: 'Gesendet', paid: 'Bezahlt', overdue: 'Überfällig', cancelled: 'Storniert' }
 const STATUS_COLORS: Record<InvoiceStatus, string> = { draft: 'default', sent: 'info', paid: 'success', overdue: 'error', cancelled: 'warning' }
 const KIND_LABELS: Record<InvoiceKind, string> = { final: 'Schlussrechnung', partial: 'Teilrechnung', advance: 'Abschlagsrechnung' }
+const TRANSITIONS: Record<InvoiceStatus, InvoiceStatus[]> = {
+  draft: ['sent'],
+  sent: ['paid', 'overdue', 'cancelled'],
+  paid: [],
+  overdue: ['paid', 'cancelled'],
+  cancelled: [],
+}
 
 const LIMIT = 25
 const items = ref<Invoice[]>([])
@@ -142,6 +172,8 @@ const confirmRef = ref()
 const paymentDialog = ref(false)
 const paymentTarget = ref<Invoice | null>(null)
 const paying = ref(false)
+const statusDialog = ref(false)
+const statusTarget = ref<Invoice | null>(null)
 
 const today = new Date().toISOString().slice(0, 10)
 const due = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10)
@@ -158,6 +190,8 @@ const fmtDate = (d: string) => new Date(d).toLocaleDateString('de-DE')
 const fmtEur = (v: string | number) => `${Number(v).toFixed(2)} €`
 const openAmount = (inv: Invoice) => Math.max(0, Number(inv.total) - Number(inv.paid_amount))
 const isOverdue = (inv: Invoice) => inv.due_date && new Date(inv.due_date) < new Date() && inv.status === 'sent'
+const customerMap = computed(() => Object.fromEntries(customers.value.map(c => [c.id, c.name])))
+const customerName = (id: number) => customerMap.value[id] ?? `K${id}`
 
 async function load() {
   loading.value = true
@@ -214,5 +248,27 @@ async function bookPayment() {
     await api.post(`/invoices/${paymentTarget.value.id}/payments`, { ...payment.value, bank_ref: payment.value.bank_ref || null })
     paymentDialog.value = false; load()
   } finally { paying.value = false }
+}
+
+function openStatus(inv: Invoice) { statusTarget.value = inv; statusDialog.value = true }
+async function applyStatus(s: InvoiceStatus) {
+  if (!statusTarget.value) return
+  try { await api.patch(`/invoices/${statusTarget.value.id}/status`, { status: s }); statusDialog.value = false; load() }
+  catch {}
+}
+
+async function downloadPdf(inv: Invoice) {
+  const res = await fetch(`/api/v1/invoices/${inv.id}/pdf`, {
+    headers: {
+      Authorization: `Bearer ${auth.accessToken}`,
+      ...(auth.currentTenant ? { 'X-Tenant-ID': String(auth.currentTenant.id) } : {}),
+    },
+  })
+  if (!res.ok) return
+  const blob = await res.blob()
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = `${inv.invoice_no}.pdf`
+  a.click(); URL.revokeObjectURL(a.href)
 }
 </script>
