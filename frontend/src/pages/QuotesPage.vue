@@ -30,6 +30,7 @@
             <td class="text-right"><strong>{{ fmtEur(q.total) }}</strong></td>
             <td class="text-right" @click.stop>
               <v-btn icon size="small" variant="text" :to="{ name: 'quote-edit', params: { id: q.id } }"><v-icon>mdi-pencil</v-icon></v-btn>
+              <v-btn icon size="small" variant="text" title="PDF herunterladen" @click="downloadPdf(q)"><v-icon>mdi-file-pdf-box</v-icon></v-btn>
               <v-btn v-if="q.status === 'accepted'" icon size="small" variant="text" color="success" title="In Auftrag wandeln" @click="openToOrder(q)"><v-icon>mdi-briefcase-arrow-right</v-icon></v-btn>
               <v-btn icon size="small" variant="text" title="Kopieren" @click="doDuplicate(q)"><v-icon>mdi-content-copy</v-icon></v-btn>
               <v-btn v-if="q.status === 'draft'" icon size="small" variant="text" color="error" @click="askDelete(q)"><v-icon>mdi-delete</v-icon></v-btn>
@@ -69,7 +70,10 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { quotesApi, type Quote, STATUS_LABELS, STATUS_COLORS } from '@/api/quotes'
+import { useAuthStore } from '@/stores/auth'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+
+const auth = useAuthStore()
 
 const router = useRouter()
 const LIMIT = 25
@@ -111,6 +115,21 @@ const totalItems = (q: Quote) => q.groups.reduce((s, g) => s + g.items.length, 0
 
 function openEditor(id: number) { router.push({ name: 'quote-edit', params: { id } }) }
 async function doDuplicate(q: Quote) { try { await quotesApi.duplicate(q.id); load() } catch {} }
+
+async function downloadPdf(q: Quote) {
+  const res = await fetch(`/api/v1/quotes/${q.id}/pdf`, {
+    headers: {
+      Authorization: `Bearer ${auth.accessToken}`,
+      ...(auth.currentTenant ? { 'X-Tenant-ID': String(auth.currentTenant.id) } : {}),
+    },
+  })
+  if (!res.ok) return
+  const blob = await res.blob()
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = `${q.quote_no}.pdf`
+  a.click(); URL.revokeObjectURL(a.href)
+}
 function openToOrder(q: Quote) { toOrderTarget.value = q; orderTitle.value = ''; toOrderDialog.value = true }
 async function doConvertToOrder() {
   if (!toOrderTarget.value) return
