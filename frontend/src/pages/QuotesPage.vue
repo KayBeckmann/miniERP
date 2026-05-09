@@ -14,15 +14,16 @@
       <v-table>
         <thead>
           <tr>
-            <th>Angebotsnr.</th><th>Datum</th><th>Gültig bis</th><th>Gruppen</th>
+            <th>Angebotsnr.</th><th>Kunde</th><th>Datum</th><th>Gültig bis</th><th>Gruppen</th>
             <th>Status</th><th class="text-right">Betrag</th><th class="text-right">Aktionen</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-if="loading"><td colspan="7" class="text-center pa-4"><v-progress-circular indeterminate size="24" /></td></tr>
-          <tr v-else-if="!items.length"><td colspan="7" class="text-center pa-4 text-medium-emphasis">Keine Angebote</td></tr>
+          <tr v-if="loading"><td colspan="8" class="text-center pa-4"><v-progress-circular indeterminate size="24" /></td></tr>
+          <tr v-else-if="!items.length"><td colspan="8" class="text-center pa-4 text-medium-emphasis">Keine Angebote</td></tr>
           <tr v-for="q in items" :key="q.id" style="cursor:pointer" @click="openEditor(q.id)">
             <td><strong>{{ q.quote_no }}</strong></td>
+            <td class="text-caption">{{ q.customer_name ?? '—' }}</td>
             <td>{{ fmtDate(q.date) }}</td>
             <td>{{ q.valid_until ? fmtDate(q.valid_until) : '—' }}</td>
             <td><span class="text-caption">{{ q.groups.length ? q.groups.map(g => g.title).join(' · ') : `${totalItems(q)} Pos.` }}</span></td>

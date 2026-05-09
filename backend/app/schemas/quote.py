@@ -96,6 +96,7 @@ class QuoteRead(BaseModel):
     id: int
     tenant_id: int
     customer_id: int
+    customer_name: str | None = None
     quote_no: str
     date: dt.date
     valid_until: dt.date | None

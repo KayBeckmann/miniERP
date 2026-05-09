@@ -66,7 +66,11 @@ async def list_quotes(
 ) -> QuoteListResponse:
     q = (
         select(Quote)
-        .options(selectinload(Quote.all_items), selectinload(Quote.groups).selectinload(QuoteGroup.items))
+        .options(
+            selectinload(Quote.all_items),
+            selectinload(Quote.groups).selectinload(QuoteGroup.items),
+            selectinload(Quote.customer),
+        )
         .where(Quote.tenant_id == tenant_id)
     )
     if status_filter:
@@ -314,7 +318,11 @@ async def _get_raw_or_404(db: AsyncSession, quote_id: int, tenant_id: int | None
 async def _load_quote(db: AsyncSession, quote_id: int, tenant_id: int | None = None) -> QuoteRead:
     q = (
         select(Quote)
-        .options(selectinload(Quote.all_items), selectinload(Quote.groups).selectinload(QuoteGroup.items))
+        .options(
+            selectinload(Quote.all_items),
+            selectinload(Quote.groups).selectinload(QuoteGroup.items),
+            selectinload(Quote.customer),
+        )
         .where(Quote.id == quote_id)
     )
     if tenant_id:
@@ -327,8 +335,10 @@ async def _load_quote(db: AsyncSession, quote_id: int, tenant_id: int | None = N
 
 def _to_read(quote: Quote) -> QuoteRead:
     ungrouped = [i for i in quote.all_items if i.group_id is None]
+    customer_name = quote.customer.name if hasattr(quote, 'customer') and quote.customer else None
     return QuoteRead(
         id=quote.id, tenant_id=quote.tenant_id, customer_id=quote.customer_id,
+        customer_name=customer_name,
         quote_no=quote.quote_no, date=quote.date, valid_until=quote.valid_until,
         status=quote.status, subtotal=quote.subtotal, vat_total=quote.vat_total,
         total=quote.total, notes=quote.notes, internal_notes=quote.internal_notes,

@@ -32,6 +32,7 @@ export interface Quote {
   id: number
   tenant_id: number
   customer_id: number
+  customer_name: string | null
   quote_no: string
   date: string          // API response uses "date"
   valid_until: string | null
