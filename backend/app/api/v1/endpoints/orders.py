@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, or_, select
@@ -118,7 +118,26 @@ async def delete_order(
     await db.commit()
 
 
-# ── Time Entries ────────────────────────────────────────────────────────────
+# ── Global Time Entries ─────────────────────────────────────────────────────
+
+@router.get("/time-entries", response_model=list[TimeEntryRead])
+async def list_all_time_entries(
+    from_date: date | None = Query(None, alias="from"),
+    to_date: date | None = Query(None, alias="to"),
+    tenant_id: int = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+) -> list[TimeEntry]:
+    q = select(TimeEntry).join(Order).where(Order.tenant_id == tenant_id)
+    if from_date:
+        q = q.where(TimeEntry.entry_date >= from_date)
+    if to_date:
+        q = q.where(TimeEntry.entry_date <= to_date)
+    result = await db.execute(q.order_by(TimeEntry.entry_date.desc()))
+    return result.scalars().all()
+
+
+# ── Time Entries (per order) ─────────────────────────────────────────────────
 
 @router.get("/{order_id}/time", response_model=list[TimeEntryRead])
 async def list_time_entries(
