@@ -66,6 +66,40 @@
       </v-col>
     </v-row>
 
+    <!-- EÜR-Vorschau -->
+    <v-card class="mb-4">
+      <v-card-title class="d-flex align-center">
+        EÜR-Vorschau
+        <v-tooltip text="Einnahmen-Überschuss-Rechnung nach Zufluss-/Abflussprinzip (vereinfacht)"><template #activator="{ props }"><v-icon v-bind="props" size="small" class="ml-1">mdi-information-outline</v-icon></template></v-tooltip>
+        <v-spacer />
+        <v-btn size="small" icon variant="text" :loading="eurLoading" @click="loadEur"><v-icon>mdi-refresh</v-icon></v-btn>
+      </v-card-title>
+      <v-card-text>
+        <v-row dense class="mb-3">
+          <v-col cols="6"><v-text-field v-model="eurFrom" type="date" label="Von" variant="outlined" density="compact" @update:model-value="loadEur" /></v-col>
+          <v-col cols="6"><v-text-field v-model="eurTo" type="date" label="Bis" variant="outlined" density="compact" @update:model-value="loadEur" /></v-col>
+        </v-row>
+        <v-table density="compact" v-if="eurData">
+          <tbody>
+            <tr><td class="text-medium-emphasis">Einnahmen (Zahlungseingänge brutto)</td><td class="text-right text-success"><strong>+ {{ fmtEur(eurData.einnahmen_brutto) }}</strong></td></tr>
+            <tr><td class="text-medium-emphasis pl-4">davon Soll-USt</td><td class="text-right">{{ fmtEur(eurData.soll_ust) }}</td></tr>
+            <tr><td class="text-medium-emphasis">Betriebsausgaben (Eingangsrechnungen netto)</td><td class="text-right text-error"><strong>− {{ fmtEur(eurData.ausgaben_netto) }}</strong></td></tr>
+            <tr><td class="text-medium-emphasis pl-4">davon Vorsteuer</td><td class="text-right">{{ fmtEur(eurData.ausgaben_ust) }}</td></tr>
+            <tr style="border-top:2px solid #ccc">
+              <td><strong>Gewinn / Verlust (Netto)</strong></td>
+              <td class="text-right"><strong :class="eurData.gewinn_verlust >= 0 ? 'text-success' : 'text-error'">{{ fmtEur(eurData.gewinn_verlust) }}</strong></td>
+            </tr>
+          </tbody>
+        </v-table>
+        <div v-if="eurData" class="text-caption text-medium-emphasis mt-2">
+          Basis: {{ eurData.payments_count }} Zahlungseingänge + {{ eurData.supplier_invoices_count }} bezahlte Eingangsrechnungen
+        </div>
+        <v-alert type="info" variant="tonal" density="compact" class="mt-2" icon="mdi-information-outline">
+          Vereinfachte Vorschau — keine Steuerberatung. Maßgeblich ist die Auswertung Ihres Steuerberaters.
+        </v-alert>
+      </v-card-text>
+    </v-card>
+
     <!-- Marge pro Auftrag -->
     <v-card class="mb-4">
       <v-card-title class="d-flex align-center">
@@ -178,6 +212,23 @@ async function loadVat() {
   finally { vatLoading.value = false }
 }
 
+// ── EÜR-Vorschau ────────────────────────────────────────────────────────────
+const eurFrom = ref(new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0, 10))
+const eurTo = ref(today)
+const eurLoading = ref(false)
+const eurData = ref<{
+  einnahmen_brutto: number; einnahmen_netto: number; soll_ust: number
+  ausgaben_netto: number; ausgaben_ust: number; gewinn_verlust: number
+  payments_count: number; supplier_invoices_count: number
+} | null>(null)
+
+async function loadEur() {
+  eurLoading.value = true
+  try { eurData.value = await api.get(`/reports/eur?period_from=${eurFrom.value}&period_to=${eurTo.value}`) }
+  catch { eurData.value = null }
+  finally { eurLoading.value = false }
+}
+
 // ── Marge pro Auftrag ───────────────────────────────────────────────────────
 interface MarginRow {
   order_id: number; order_no: string; title: string; customer: string; status: string
@@ -204,5 +255,5 @@ async function loadMargin() {
   finally { marginLoading.value = false }
 }
 
-onMounted(() => { loadVat(); loadMargin() })
+onMounted(() => { loadVat(); loadMargin(); loadEur() })
 </script>

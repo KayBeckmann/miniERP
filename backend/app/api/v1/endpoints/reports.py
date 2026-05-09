@@ -129,7 +129,6 @@ async def export_tax(
             ])
         zf.writestr("zahlungen.csv", pay_buf.getvalue())
 
-        # manifest.json
         manifest = {
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "tenant_id": tenant_id,
@@ -139,6 +138,39 @@ async def export_tax(
             "invoices_count": len(invoices),
             "payments_count": len(payments),
         }
+
+        # eingangsrechnungen.csv
+        si_result = await db.execute(
+            select(SupplierInvoice)
+            .where(
+                SupplierInvoice.tenant_id == tenant_id,
+                SupplierInvoice.invoice_date >= period_from,
+                SupplierInvoice.invoice_date <= period_to,
+                SupplierInvoice.status.in_(["confirmed", "paid"]),
+            )
+            .order_by(SupplierInvoice.invoice_date)
+        )
+        supplier_invoices = si_result.scalars().all()
+
+        si_buf = io.StringIO()
+        w3 = csv.writer(si_buf, delimiter=";")
+        w3.writerow(["Datum", "Ext. Belegnr.", "Beschreibung", "Status",
+                     "Netto", "USt", "Brutto", "Bezahlt am"])
+        for si in supplier_invoices:
+            paid_at_str = si.paid_at.strftime("%d.%m.%Y") if si.paid_at else ""
+            w3.writerow([
+                si.invoice_date.strftime("%d.%m.%Y") if si.invoice_date else "",
+                si.external_no or "",
+                si.description or "",
+                si.status,
+                str(si.subtotal or ""),
+                str(si.vat_total or ""),
+                str(si.total or ""),
+                paid_at_str,
+            ])
+        zf.writestr("eingangsrechnungen.csv", si_buf.getvalue())
+
+        manifest["supplier_invoices_count"] = len(supplier_invoices)
         zf.writestr("manifest.json", json.dumps(manifest, indent=2, ensure_ascii=False))
 
     zip_buf.seek(0)
@@ -148,6 +180,71 @@ async def export_tax(
         media_type="application/zip",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.get("/eur")
+async def eur_preview(
+    period_from: date = Query(...),
+    period_to: date = Query(...),
+    tenant_id: int = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+) -> dict:
+    """EÜR-Vorschau (Zufluss-/Abflussprinzip)."""
+    # Einnahmen: Zahlungseingänge im Zeitraum
+    payments_in = (await db.execute(
+        select(Payment).join(Invoice).where(
+            Invoice.tenant_id == tenant_id,
+            Payment.payment_date >= period_from,
+            Payment.payment_date <= period_to,
+        )
+    )).scalars().all()
+
+    # Ausgaben: bezahlte Lieferantenrechnungen im Zeitraum
+    supplier_invoices_paid = (await db.execute(
+        select(SupplierInvoice).where(
+            SupplierInvoice.tenant_id == tenant_id,
+            SupplierInvoice.status == "paid",
+            SupplierInvoice.invoice_date >= period_from,
+            SupplierInvoice.invoice_date <= period_to,
+        )
+    )).scalars().all()
+
+    einnahmen_brutto = float(sum(Decimal(str(p.amount)) for p in payments_in))
+    # Vorsteuer aus Eingangsrechnungen (approximation: vat_total)
+    ausgaben_netto = float(sum(
+        Decimal(str(si.subtotal)) for si in supplier_invoices_paid if si.subtotal
+    ))
+    ausgaben_ust = float(sum(
+        Decimal(str(si.vat_total)) for si in supplier_invoices_paid if si.vat_total
+    ))
+
+    # Soll-USt aus Ausgangsrechnungen im Zeitraum (für Zahllast)
+    invoices_in_period = (await db.execute(
+        select(Invoice).where(
+            Invoice.tenant_id == tenant_id,
+            Invoice.invoice_date >= period_from,
+            Invoice.invoice_date <= period_to,
+            Invoice.status.notin_(["draft", "cancelled"]),
+        )
+    )).scalars().all()
+    soll_ust = float(sum(Decimal(str(i.vat_total)) for i in invoices_in_period))
+    einnahmen_netto = einnahmen_brutto - soll_ust  # simplified
+
+    gewinn = einnahmen_netto - ausgaben_netto
+
+    return {
+        "period_from": period_from.isoformat(),
+        "period_to": period_to.isoformat(),
+        "einnahmen_brutto": round(einnahmen_brutto, 2),
+        "einnahmen_netto": round(einnahmen_netto, 2),
+        "soll_ust": round(soll_ust, 2),
+        "ausgaben_netto": round(ausgaben_netto, 2),
+        "ausgaben_ust": round(ausgaben_ust, 2),
+        "gewinn_verlust": round(gewinn, 2),
+        "payments_count": len(payments_in),
+        "supplier_invoices_count": len(supplier_invoices_paid),
+    }
 
 
 @router.get("/margin")

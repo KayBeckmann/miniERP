@@ -256,14 +256,16 @@ Jede Phase endet mit einem **lauffähigen Stand** (build grün, manueller Smoket
 - [ ] Use-Case 4: Hufbefund strukturieren (für Mandant `huf`)
 - [ ] Use-Case 5: Embeddings auf `position_history` für Ähnlichkeitsvorschläge
 
-### Phase 8 – Härtung & Finanzschnittstellen
+### Phase 8 – Härtung & Finanzschnittstellen ✅ Basis abgeschlossen (2026-05-09)
+- [x] **EÜR-Vorschau** (Zufluss-/Abflussprinzip): Einnahmen, Ausgaben, Gewinn/Verlust
+- [x] Eingangsrechnungen im Steuerberater-Export-ZIP (`eingangsrechnungen.csv`)
+- [x] GET /reports/eur — EÜR-Vorschau API-Endpoint
 - [ ] Backups (pg_dump nightly, Dokumente in Paperless bleiben dort gesichert)
 - [ ] Rollen-/Berechtigungslogik, falls Mehrbenutzer kommen
 - [ ] **FinTS/HBCI-Anbindung** für Zahlungsabgleich (Kontoumsätze → Match auf
       `Payment.bank_ref`). **Bewusst hier**, nicht früher — Phase 4 erfasst
       Zahlungen so lange manuell.
 - [ ] DATEV-CSV-Variante des Steuerberater-Exports (sobald StB-Format bekannt)
-- [ ] EÜR-Vorschau auf Basis der Exportdaten
 - [ ] Peppol-Versand für E-Rechnungen (optional)
 
 ## 4. Out of Scope (vorerst)
