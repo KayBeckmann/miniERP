@@ -10,6 +10,7 @@ FROM python:3.12-slim
 WORKDIR /app
 COPY --from=builder /install /usr/local
 COPY . .
+COPY templates/ /app/templates/
 RUN chmod +x entrypoint.sh
 ENV PYTHONPATH=/app
 EXPOSE 8000
