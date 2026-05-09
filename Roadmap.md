@@ -184,31 +184,31 @@ Jede Phase endet mit einem **lauffähigen Stand** (build grün, manueller Smoket
 - [x] CSV-Import für Material übersprungen (keine Altdaten vorhanden)
 - [x] Mandanten-Scope strikt im Backend erzwungen (`get_tenant_id`-Dependency, X-Tenant-ID-Header)
 
-### Phase 2 – Angebote (≈ 2–3 Tage)
-- [ ] Quote + QuoteItem CRUD, Positions-Editor mit **Freitext als Default**
-- [ ] Quick-Reuse: „Letzte 30 Positionen“, „Aus Angebot X übernehmen“
-- [ ] `position_history` befüllen (für späteres Lazy-Stamm + Embeddings)
-- [ ] Optionaler Material-Lookup (nur falls Stammartikel vorhanden)
-- [ ] Berechnung Netto/USt/Brutto pro Position + Summen serverseitig (single source of truth)
-- [ ] Nummernkreise pro Mandant + Jahr + Belegart (`NumberSequence`, transaktional)
-- [ ] PDF-Template `Bau` und `Huf`, **Gotenberg** (HTML/Jinja → PDF/A), Vorschau im Browser
-- [ ] Status-Workflow (draft → sent → accepted/declined → in Auftrag gewandelt)
-- [ ] Versand per Mail (SMTP) als optionaler Schritt
+### Phase 2 – Angebote ✅ abgeschlossen (2026-05-09)
+- [x] Quote + QuoteItem CRUD, Positions-Editor mit **Freitext als Default**
+- [x] Quick-Reuse: „Letzte 30 Positionen“, „Aus Angebot X übernehmen“
+- [x] `position_history` befüllen (für späteres Lazy-Stamm + Embeddings)
+- [x] Optionaler Material-Lookup (nur falls Stammartikel vorhanden)
+- [x] Berechnung Netto/USt/Brutto pro Position + Summen serverseitig (single source of truth)
+- [x] Nummernkreise pro Mandant + Jahr + Belegart (`NumberSequence`, transaktional)
+- [x] PDF-Template `Bau` und `Huf`, **Gotenberg** (HTML/Jinja → PDF/A), Vorschau im Browser
+- [x] Status-Workflow (draft → sent → accepted/declined → in Auftrag gewandelt)
+- [x] Versand per Mail (SMTP) als optionaler Schritt
 
-### Phase 3 – Aufträge + Stunden (≈ 1–2 Tage)
-- [ ] Order entsteht aus akzeptiertem Angebot (Kopie der Positionen als Soll)
-- [ ] Auftragsbestätigungs-PDF (eigener Belegtyp, eigener Nummernkreis)
-- [ ] TimeEntry-Erfassung: Wochenansicht + Schnellbuchung mobil (Vuetify, PWA-tauglich)
-- [ ] Soll/Ist-Auswertung pro Auftrag (Stunden + Material)
+### Phase 3 – Aufträge + Stundenerfassung ✅ abgeschlossen (2026-05-09)
+- [x] Order entsteht aus akzeptiertem Angebot (Kopie der Positionen als Soll)
+- [x] Auftragsbestätigungs-PDF (eigener Belegtyp, eigener Nummernkreis)
+- [x] TimeEntry-Erfassung: Wochenansicht + Schnellbuchung mobil (Vuetify, PWA-tauglich)
+- [x] Soll/Ist-Auswertung pro Auftrag (Stunden + Material)
 
-### Phase 4 – Ausgangsrechnungen (≈ 2–3 Tage)
-- [ ] Rechnung aus Auftrag (anteilig nach Stunden/Material) oder aus Angebot (1:1)
-- [ ] Teil-/Abschlags-/Schlussrechnung
-- [ ] **Gutschrift als eigener Belegtyp** (Storno- statt Lösch-Pfad)
-- [ ] PDF analog zu Angeboten, eigene Templates, `pdf_sha256` festschreiben
-- [ ] **E-Rechnung Kern, nicht Backlog**: XRechnung (UBL) und ZUGFeRD 2.x abhängig vom
+### Phase 4 – Ausgangsrechnungen ✅ abgeschlossen (2026-05-09)
+- [x] Rechnung aus Auftrag (anteilig nach Stunden/Material) oder aus Angebot (1:1)
+- [x] Teil-/Abschlags-/Schlussrechnung
+- [x] **Gutschrift als eigener Belegtyp** (Storno- statt Lösch-Pfad)
+- [x] PDF analog zu Angeboten, eigene Templates, `pdf_sha256` festschreiben
+- [x] **E-Rechnung Kern, nicht Backlog**: XRechnung (UBL) und ZUGFeRD 2.x abhängig vom
       Customer-Flag erzeugen; mehrere Zahlungen je Rechnung (`Payment` 1:n)
-- [ ] Zahlungseingang **manuell** erfassen (FinTS folgt später, Schema bleibt vorbereitet),
+- [x] Zahlungseingang **manuell** erfassen (FinTS folgt später, Schema bleibt vorbereitet),
       OP-Liste, Mahnstufen-Felder vorbereiten
 
 ### Phase 5 – Lieferantenrechnungen (≈ 1–2 Tage)
@@ -227,7 +227,7 @@ Jede Phase endet mit einem **lauffähigen Stand** (build grün, manueller Smoket
 - [ ] Nextcloud-Adapter bleibt im Code als zweite Implementierung des `DocumentStore`-Interfaces,
       ist aber **nicht** der Default
 
-### Phase 6 – Auswertungen & Steuerberater-Export (≈ 1–2 Tage)
+### Phase 6 – Auswertungen & Steuerberater-Export ✅ Basis abgeschlossen (2026-05-09)
 - [ ] Offene Angebote, offene Rechnungen, fällige Lieferantenrechnungen
 - [ ] Marge pro Auftrag, Stunden pro Kunde/Monat
 - [ ] **Steuerberater-Export** (zentral, weil das die laufende Schnittstelle ist):
