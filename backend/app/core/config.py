@@ -15,6 +15,8 @@ class Settings(BaseSettings):
 
     OLLAMA_URL: str = "http://ollama:11434"
     GOTENBERG_URL: str = "http://gotenberg:3000"
+    PAPERLESS_URL: str = "http://localhost:8000"
+    PAPERLESS_TOKEN: str = ""
 
     DEBUG: bool = False
 

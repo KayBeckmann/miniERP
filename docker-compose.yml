@@ -26,6 +26,8 @@ services:
       FIRST_SUPERUSER_PASSWORD: ${FIRST_SUPERUSER_PASSWORD:?FIRST_SUPERUSER_PASSWORD required}
       OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
       GOTENBERG_URL: ${GOTENBERG_URL:-http://gotenberg:3000}
+      PAPERLESS_URL: ${PAPERLESS_URL:-http://localhost:8000}
+      PAPERLESS_TOKEN: ${PAPERLESS_TOKEN:-}
     depends_on:
       postgres:
         condition: service_healthy
