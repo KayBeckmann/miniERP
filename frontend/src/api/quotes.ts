@@ -5,6 +5,7 @@ export type QuoteStatus = 'draft' | 'sent' | 'accepted' | 'declined' | 'expired'
 export interface QuoteItem {
   id: number
   quote_id: number
+  group_id: number | null
   position: number
   description: string
   qty: string
@@ -16,12 +17,23 @@ export interface QuoteItem {
   material_id: number | null
 }
 
+export interface QuoteGroup {
+  id: number
+  quote_id: number
+  title: string
+  position: number
+  subtotal: string
+  vat_total: string
+  group_total: string
+  items: QuoteItem[]
+}
+
 export interface Quote {
   id: number
   tenant_id: number
   customer_id: number
   quote_no: string
-  quote_date: string
+  date: string          // API response uses "date"
   valid_until: string | null
   status: QuoteStatus
   subtotal: string
@@ -33,7 +45,8 @@ export interface Quote {
   version: number
   created_at: string
   updated_at: string
-  items: QuoteItem[]
+  groups: QuoteGroup[]
+  items: QuoteItem[]    // ungrouped items
 }
 
 export interface QuoteItemIn {
@@ -47,13 +60,20 @@ export interface QuoteItemIn {
   position?: number | null
 }
 
+export interface QuoteGroupIn {
+  title: string
+  position?: number | null
+  items: QuoteItemIn[]
+}
+
 export interface QuoteCreate {
   customer_id: number
-  quote_date: string
+  quote_date: string    // API input uses "quote_date"
   valid_until?: string | null
   notes?: string | null
   internal_notes?: string | null
-  items: QuoteItemIn[]
+  groups?: QuoteGroupIn[]
+  items?: QuoteItemIn[]
 }
 
 export interface PaginatedResponse<T> {
@@ -71,21 +91,13 @@ export interface PositionHistory {
 }
 
 export const STATUS_LABELS: Record<QuoteStatus, string> = {
-  draft: 'Entwurf',
-  sent: 'Gesendet',
-  accepted: 'Angenommen',
-  declined: 'Abgelehnt',
-  expired: 'Abgelaufen',
+  draft: 'Entwurf', sent: 'Gesendet', accepted: 'Angenommen',
+  declined: 'Abgelehnt', expired: 'Abgelaufen',
 }
-
 export const STATUS_COLORS: Record<QuoteStatus, string> = {
-  draft: 'default',
-  sent: 'info',
-  accepted: 'success',
-  declined: 'error',
-  expired: 'warning',
+  draft: 'default', sent: 'info', accepted: 'success',
+  declined: 'error', expired: 'warning',
 }
-
 export const TRANSITIONS: Record<QuoteStatus, QuoteStatus[]> = {
   draft: ['sent', 'expired'],
   sent: ['accepted', 'declined', 'expired'],
@@ -96,9 +108,7 @@ export const TRANSITIONS: Record<QuoteStatus, QuoteStatus[]> = {
 
 function qp(p: Record<string, string | number | boolean | undefined>): string {
   const q = new URLSearchParams()
-  for (const [k, v] of Object.entries(p)) {
-    if (v !== undefined && v !== '') q.set(k, String(v))
-  }
+  for (const [k, v] of Object.entries(p)) if (v !== undefined && v !== '') q.set(k, String(v))
   return q.toString() ? `?${q}` : ''
 }
 
@@ -107,12 +117,14 @@ export const quotesApi = {
     api.get<PaginatedResponse<Quote>>(`/quotes${qp(p)}`),
   get: (id: number) => api.get<Quote>(`/quotes/${id}`),
   create: (data: QuoteCreate) => api.post<Quote>('/quotes', data),
-  update: (id: number, data: Partial<QuoteCreate> & { items?: QuoteItemIn[] }) =>
+  update: (id: number, data: Partial<QuoteCreate> & { groups?: QuoteGroupIn[]; items?: QuoteItemIn[] }) =>
     api.patch<Quote>(`/quotes/${id}`, data),
   delete: (id: number) => api.delete<void>(`/quotes/${id}`),
   setStatus: (id: number, status: QuoteStatus) =>
     api.patch<Quote>(`/quotes/${id}/status`, { status }),
   duplicate: (id: number) => api.post<Quote>(`/quotes/${id}/duplicate`, {}),
+  toOrder: (id: number, title?: string) =>
+    api.post<import('./orders').Order>(`/quotes/${id}/to-order`, { title: title ?? null }),
   pdfUrl: (id: number) => `/api/v1/quotes/${id}/pdf`,
   positionHistory: (search?: string) =>
     api.get<PositionHistory[]>(`/quotes/position-history${search ? `?search=${encodeURIComponent(search)}` : ''}`),

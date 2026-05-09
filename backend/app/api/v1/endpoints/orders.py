@@ -7,11 +7,16 @@ from sqlalchemy.orm import selectinload
 
 from app.core.db import get_db
 from app.core.deps import get_current_user, get_tenant_id
+from app.models.invoice import Invoice, InvoiceItem
 from app.models.order import Order, TimeEntry
+from app.models.quote import Quote, QuoteGroup, QuoteItem
+from app.schemas.invoice import InvoiceRead
 from app.schemas.order import (
     OrderCreate, OrderListResponse, OrderRead, OrderUpdate,
     TimeEntryCreate, TimeEntryRead, TimeEntryUpdate,
 )
+from app.schemas.quote import CreateInvoiceFromOrderBody
+from app.services import calculation
 from app.services.number_sequence import next_number
 
 router = APIRouter()
@@ -176,6 +181,67 @@ async def delete_time_entry(
     entry = await _get_entry_or_404(db, entry_id, order_id)
     await db.delete(entry)
     await db.commit()
+
+
+@router.post("/{order_id}/to-invoice", response_model=InvoiceRead, status_code=status.HTTP_201_CREATED)
+async def create_invoice_from_order(
+    order_id: int,
+    body: CreateInvoiceFromOrderBody,
+    tenant_id: int = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+) -> InvoiceRead:
+    order = await _get_or_404(db, order_id, tenant_id)
+    inv_no = await next_number(db, tenant_id, "invoice")
+
+    invoice = Invoice(
+        tenant_id=tenant_id,
+        customer_id=order.customer_id,
+        order_id=order.id,
+        quote_id=order.quote_id,
+        invoice_no=inv_no,
+        invoice_date=body.invoice_date,
+        due_date=body.due_date,
+        kind=body.kind,
+    )
+    db.add(invoice)
+    await db.flush()
+
+    # Items aus verknüpftem Angebot kopieren (wenn gewünscht)
+    if body.copy_items and order.quote_id:
+        all_items_result = await db.execute(
+            select(QuoteItem).where(QuoteItem.quote_id == order.quote_id).order_by(QuoteItem.position)
+        )
+        quote_items = all_items_result.scalars().all()
+        inv_items: list[InvoiceItem] = []
+        for qi in quote_items:
+            ii = InvoiceItem(
+                invoice_id=invoice.id,
+                position=qi.position,
+                description=qi.description,
+                qty=qi.qty,
+                unit=qi.unit,
+                unit_price=qi.unit_price,
+                discount_pct=qi.discount_pct,
+                vat_rate=qi.vat_rate,
+                line_total=qi.line_total,
+                material_id=qi.material_id,
+            )
+            db.add(ii)
+            inv_items.append(ii)
+        await db.flush()
+        invoice.subtotal, invoice.vat_total, invoice.total = calculation.calc_totals(inv_items)
+
+    await db.commit()
+    # Reload mit relationships
+    from sqlalchemy.orm import selectinload as sl
+    result = await db.execute(
+        select(Invoice)
+        .options(sl(Invoice.items), sl(Invoice.payments))
+        .where(Invoice.id == invoice.id)
+    )
+    inv = result.scalars().first()
+    return InvoiceRead.model_validate(inv)
 
 
 async def _get_or_404(db: AsyncSession, order_id: int, tenant_id: int) -> Order:

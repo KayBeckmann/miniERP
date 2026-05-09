@@ -2,7 +2,7 @@ from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import (
-    Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, func,
+    Date, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -44,18 +44,54 @@ class Quote(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
-    items: Mapped[list["QuoteItem"]] = relationship(
-        back_populates="quote", cascade="all, delete-orphan", order_by="QuoteItem.position"
+    # All items (grouped + ungrouped) — use for totals calculation
+    all_items: Mapped[list["QuoteItem"]] = relationship(
+        "QuoteItem",
+        foreign_keys="QuoteItem.quote_id",
+        cascade="all, delete-orphan",
+        order_by="QuoteItem.position",
+        lazy="select",
+    )
+    groups: Mapped[list["QuoteGroup"]] = relationship(
+        "QuoteGroup",
+        cascade="all, delete-orphan",
+        order_by="QuoteGroup.position",
     )
     customer: Mapped["Customer"] = relationship("Customer")  # type: ignore[name-defined]
     tenant: Mapped["Tenant"] = relationship("Tenant")  # type: ignore[name-defined]
+
+
+class QuoteGroup(Base):
+    __tablename__ = "quote_groups"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    quote_id: Mapped[int] = mapped_column(
+        ForeignKey("quotes.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    subtotal: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=Decimal("0.00"))
+    vat_total: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=Decimal("0.00"))
+    group_total: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=Decimal("0.00"))
+
+    items: Mapped[list["QuoteItem"]] = relationship(
+        "QuoteItem",
+        foreign_keys="QuoteItem.group_id",
+        cascade="all, delete-orphan",
+        order_by="QuoteItem.position",
+    )
 
 
 class QuoteItem(Base):
     __tablename__ = "quote_items"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    quote_id: Mapped[int] = mapped_column(ForeignKey("quotes.id", ondelete="CASCADE"), nullable=False, index=True)
+    quote_id: Mapped[int] = mapped_column(
+        ForeignKey("quotes.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    group_id: Mapped[int | None] = mapped_column(
+        ForeignKey("quote_groups.id", ondelete="CASCADE"), nullable=True
+    )
     position: Mapped[int] = mapped_column(Integer, nullable=False)
     material_id: Mapped[int | None] = mapped_column(ForeignKey("materials.id"), nullable=True)
     description: Mapped[str] = mapped_column(Text, nullable=False)
@@ -65,8 +101,6 @@ class QuoteItem(Base):
     discount_pct: Mapped[Decimal] = mapped_column(Numeric(5, 2), nullable=False, default=Decimal("0.00"))
     vat_rate: Mapped[Decimal] = mapped_column(Numeric(5, 2), nullable=False)
     line_total: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
-
-    quote: Mapped["Quote"] = relationship(back_populates="items")
 
 
 class PositionHistory(Base):

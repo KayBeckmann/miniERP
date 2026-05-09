@@ -17,13 +17,20 @@ class QuoteItemIn(BaseModel):
     position: int | None = None
 
 
+class QuoteGroupIn(BaseModel):
+    title: str
+    position: int | None = None
+    items: list[QuoteItemIn] = []
+
+
 class QuoteCreate(BaseModel):
     customer_id: int
     quote_date: dt.date
     valid_until: dt.date | None = None
     notes: str | None = None
     internal_notes: str | None = None
-    items: list[QuoteItemIn] = []
+    groups: list[QuoteGroupIn] = []   # Grouped items
+    items: list[QuoteItemIn] = []     # Ungrouped items
 
 
 class QuoteUpdate(BaseModel):
@@ -32,6 +39,7 @@ class QuoteUpdate(BaseModel):
     valid_until: dt.date | None = None
     notes: str | None = None
     internal_notes: str | None = None
+    groups: list[QuoteGroupIn] | None = None
     items: list[QuoteItemIn] | None = None
 
 
@@ -43,9 +51,21 @@ class QuoteStatusUpdate(BaseModel):
         return self
 
 
+class ConvertToOrderBody(BaseModel):
+    title: str | None = None
+
+
+class CreateInvoiceFromOrderBody(BaseModel):
+    invoice_date: dt.date
+    due_date: dt.date | None = None
+    kind: Literal["final", "partial", "advance"] = "final"
+    copy_items: bool = True
+
+
 class QuoteItemRead(BaseModel):
     id: int
     quote_id: int
+    group_id: int | None
     position: int
     description: str
     qty: Decimal
@@ -55,6 +75,19 @@ class QuoteItemRead(BaseModel):
     vat_rate: Decimal
     line_total: Decimal
     material_id: int | None
+
+    model_config = {"from_attributes": True}
+
+
+class QuoteGroupRead(BaseModel):
+    id: int
+    quote_id: int
+    title: str
+    position: int
+    subtotal: Decimal
+    vat_total: Decimal
+    group_total: Decimal
+    items: list[QuoteItemRead] = []
 
     model_config = {"from_attributes": True}
 
@@ -76,7 +109,8 @@ class QuoteRead(BaseModel):
     version: int
     created_at: datetime
     updated_at: datetime
-    items: list[QuoteItemRead] = []
+    groups: list[QuoteGroupRead] = []
+    items: list[QuoteItemRead] = []   # Ungrouped items
 
     model_config = {"from_attributes": True}
 

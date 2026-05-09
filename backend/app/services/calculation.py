@@ -19,21 +19,21 @@ def calc_totals(items: list[QuoteItem]) -> tuple[Decimal, Decimal, Decimal]:
     return subtotal, vat_total, subtotal + vat_total
 
 
+def build_item(item: QuoteItemIn, position: int) -> dict:
+    """Berechnet line_total für eine einzelne Position."""
+    line_total = calc_line_total(item.qty, item.unit_price, item.discount_pct)
+    return {
+        "position": item.position if item.position is not None else position,
+        "description": item.description,
+        "qty": item.qty,
+        "unit": item.unit,
+        "unit_price": item.unit_price,
+        "discount_pct": item.discount_pct,
+        "vat_rate": item.vat_rate,
+        "line_total": line_total,
+        "material_id": item.material_id,
+    }
+
+
 def build_items(raw: list[QuoteItemIn]) -> list[dict]:
-    result = []
-    for idx, item in enumerate(raw):
-        line_total = calc_line_total(item.qty, item.unit_price, item.discount_pct)
-        result.append(
-            {
-                "position": item.position if item.position is not None else idx + 1,
-                "description": item.description,
-                "qty": item.qty,
-                "unit": item.unit,
-                "unit_price": item.unit_price,
-                "discount_pct": item.discount_pct,
-                "vat_rate": item.vat_rate,
-                "line_total": line_total,
-                "material_id": item.material_id,
-            }
-        )
-    return result
+    return [build_item(item, idx + 1) for idx, item in enumerate(raw)]

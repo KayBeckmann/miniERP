@@ -62,4 +62,6 @@ export const ordersApi = {
     api.patch<TimeEntry>(`/orders/${orderId}/time/${entryId}`, data),
   deleteTime: (orderId: number, entryId: number) =>
     api.delete<void>(`/orders/${orderId}/time/${entryId}`),
+  toInvoice: (orderId: number, data: { invoice_date: string; due_date?: string | null; kind: 'final' | 'partial' | 'advance'; copy_items?: boolean }) =>
+    api.post<{ id: number; invoice_no: string }>(`/orders/${orderId}/to-invoice`, data),
 }

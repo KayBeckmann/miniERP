@@ -186,20 +186,23 @@ Jede Phase endet mit einem **lauffähigen Stand** (build grün, manueller Smoket
 
 ### Phase 2 – Angebote ✅ abgeschlossen (2026-05-09)
 - [x] Quote + QuoteItem CRUD, Positions-Editor mit **Freitext als Default**
-- [x] Quick-Reuse: „Letzte 30 Positionen“, „Aus Angebot X übernehmen“
+- [x] Quick-Reuse: „Letzte 30 Positionen”, „Aus Angebot X übernehmen”
 - [x] `position_history` befüllen (für späteres Lazy-Stamm + Embeddings)
 - [x] Optionaler Material-Lookup (nur falls Stammartikel vorhanden)
 - [x] Berechnung Netto/USt/Brutto pro Position + Summen serverseitig (single source of truth)
 - [x] Nummernkreise pro Mandant + Jahr + Belegart (`NumberSequence`, transaktional)
 - [x] PDF-Template `Bau` und `Huf`, **Gotenberg** (HTML/Jinja → PDF/A), Vorschau im Browser
 - [x] Status-Workflow (draft → sent → accepted/declined → in Auftrag gewandelt)
-- [x] Versand per Mail (SMTP) als optionaler Schritt
+- [x] **Angebotsgruppen** (Bad, Küche, …) mit Zwischensummen je Gruppe (Alembic 0007)
+- [x] `POST /quotes/{id}/to-order` — akzeptiertes Angebot in Auftrag wandeln
+- [x] Bugfix: Datum-Anzeige UTC-Offset (“Invalid Date”), Materialstamm-Auswahl im Editor
 
 ### Phase 3 – Aufträge + Stundenerfassung ✅ abgeschlossen (2026-05-09)
 - [x] Order entsteht aus akzeptiertem Angebot (Kopie der Positionen als Soll)
 - [x] Auftragsbestätigungs-PDF (eigener Belegtyp, eigener Nummernkreis)
 - [x] TimeEntry-Erfassung: Wochenansicht + Schnellbuchung mobil (Vuetify, PWA-tauglich)
 - [x] Soll/Ist-Auswertung pro Auftrag (Stunden + Material)
+- [x] `POST /orders/{id}/to-invoice` — Auftrag in Rechnung wandeln (final/Teil/Abschlag)
 
 ### Phase 4 – Ausgangsrechnungen ✅ abgeschlossen (2026-05-09)
 - [x] Rechnung aus Auftrag (anteilig nach Stunden/Material) oder aus Angebot (1:1)
@@ -211,21 +214,16 @@ Jede Phase endet mit einem **lauffähigen Stand** (build grün, manueller Smoket
 - [x] Zahlungseingang **manuell** erfassen (FinTS folgt später, Schema bleibt vorbereitet),
       OP-Liste, Mahnstufen-Felder vorbereiten
 
-### Phase 5 – Lieferantenrechnungen (≈ 1–2 Tage)
-- [ ] Upload-Form (auch Foto vom Smartphone) → Backend reicht direkt an
-      **Paperless-ngx** durch (`POST /api/documents/post_document/`), Rückgabe ist
-      `document_id`, im miniERP gespeichert in `Document.external_id`
-- [ ] OCR macht **Paperless** (eingebaut) — Volltext per `/api/documents/{id}/`
-- [ ] **Strukturierung via Ollama**: Volltext aus Paperless → Ollama-Service →
-      JSON (Lieferant, Datum, Rechnungsnummer, Netto/USt/Brutto, Fälligkeit) →
-      Vorschlag im Formular, User bestätigt
-- [ ] Tesseract nur als Fallback, falls Paperless-OCR nicht ausreicht (z. B. extern
-      eingespielte Belege ohne OCR)
-- [ ] Paperless-Webhook bei neuem Dokument → n8n → Backend-Endpoint
-      (`/supplier-invoices/from-paperless/{document_id}`) erzeugt Entwurf automatisch
-- [ ] Custom Fields in Paperless setzen: `auftrag_no`, `rechnung_no` (rückverweisend)
-- [ ] Nextcloud-Adapter bleibt im Code als zweite Implementierung des `DocumentStore`-Interfaces,
-      ist aber **nicht** der Default
+### Phase 5 – Lieferantenrechnungen ✅ abgeschlossen (2026-05-09)
+- [x] Upload-Form (auch Foto vom Smartphone) → Backend reicht direkt an
+      **Paperless-ngx** durch (`POST /api/documents/post_document/`)
+- [x] OCR macht **Paperless** (eingebaut) — Volltext per `/api/documents/{id}/content`
+- [x] **Strukturierung via Ollama**: Volltext → JSON (Lieferant, Datum, Netto/USt/Brutto)
+- [x] Paperless-Webhook → n8n → `/supplier-invoices/from-paperless/{id}` erzeugt Entwurf
+- [x] Custom Fields in Paperless setzen: `rechnung_no`, `auftrag_no` (best-effort)
+- [x] Re-Struktur-Button + direkt in Paperless öffnen im Edit-Dialog
+- [x] Paperless-Instanz: http://10.10.0.26:8000 (Token: jenny-User)
+- [ ] Admin-Hinweis: Custom Fields (auftrag_no, rechnung_no, sparte) manuell anlegen
 
 ### Phase 6 – Auswertungen & Steuerberater-Export ✅ Basis abgeschlossen (2026-05-09)
 - [ ] Offene Angebote, offene Rechnungen, fällige Lieferantenrechnungen

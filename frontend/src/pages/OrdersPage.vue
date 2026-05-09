@@ -35,6 +35,7 @@
             <td class="text-right">{{ o.budget_hours ?? '—' }}</td>
             <td class="text-right" @click.stop>
               <v-btn icon size="small" variant="text" @click="openDetail(o)"><v-icon>mdi-clock-outline</v-icon><v-tooltip activator="parent">Stunden</v-tooltip></v-btn>
+              <v-btn icon size="small" variant="text" color="success" title="Rechnung erstellen" @click="openToInvoice(o)"><v-icon>mdi-file-document-plus-outline</v-icon></v-btn>
               <v-btn icon size="small" variant="text" @click="openEdit(o)"><v-icon>mdi-pencil</v-icon></v-btn>
               <v-btn icon size="small" variant="text" color="error" @click="askDelete(o)"><v-icon>mdi-delete</v-icon></v-btn>
             </td>
@@ -125,15 +126,47 @@
       </v-card>
     </v-dialog>
 
+    <!-- To Invoice Dialog -->
+    <v-dialog v-model="toInvoiceDialog" max-width="480" persistent>
+      <v-card v-if="toInvoiceTarget">
+        <v-card-title>Rechnung erstellen — {{ toInvoiceTarget.order_no }}</v-card-title>
+        <v-card-text>
+          <v-row dense>
+            <v-col cols="12" sm="6">
+              <v-text-field v-model="invoiceForm.invoice_date" type="date" label="Rechnungsdatum *" variant="outlined" density="compact" />
+            </v-col>
+            <v-col cols="12" sm="6">
+              <v-text-field v-model="invoiceForm.due_date" type="date" label="Fälligkeitsdatum" variant="outlined" density="compact" />
+            </v-col>
+            <v-col cols="12">
+              <v-select v-model="invoiceForm.kind" :items="invoiceKindOptions" label="Rechnungsart" variant="outlined" density="compact" />
+            </v-col>
+            <v-col cols="12">
+              <v-checkbox v-model="invoiceForm.copy_items" label="Positionen aus Angebot übernehmen" density="compact" hide-details />
+            </v-col>
+          </v-row>
+          <v-alert v-if="invoiceError" type="error" variant="tonal" density="compact" class="mt-2">{{ invoiceError }}</v-alert>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="toInvoiceDialog = false">Abbrechen</v-btn>
+          <v-btn color="success" variant="flat" :loading="creatingInvoice" @click="doCreateInvoice">Rechnung erstellen</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <ConfirmDialog ref="confirmRef" title="Auftrag löschen?" :message="`${deleteTarget?.title} löschen?`" @confirm="doDelete" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ordersApi, type Order, type TimeEntry, STATUS_LABELS, STATUS_COLORS } from '@/api/orders'
 import { customersApi, type Customer } from '@/api/stammdaten'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+
+const router = useRouter()
 
 const LIMIT = 25
 const items = ref<Order[]>([])
@@ -159,6 +192,17 @@ const addingEntry = ref(false)
 
 const today = new Date().toISOString().slice(0, 10)
 const newEntry = ref({ entry_date: today, hours: '1.00', description: '', billable: true })
+
+const toInvoiceDialog = ref(false)
+const toInvoiceTarget = ref<Order | null>(null)
+const creatingInvoice = ref(false)
+const invoiceError = ref('')
+const invoiceForm = ref({ invoice_date: today, due_date: '', kind: 'final' as 'final' | 'partial' | 'advance', copy_items: true })
+const invoiceKindOptions = [
+  { title: 'Schlussrechnung', value: 'final' },
+  { title: 'Teilrechnung', value: 'partial' },
+  { title: 'Abschlagsrechnung', value: 'advance' },
+]
 
 const statusOptions = [
   { title: 'Offen', value: 'open' }, { title: 'In Arbeit', value: 'in_progress' },
@@ -225,6 +269,28 @@ async function addEntry() {
     load()
   } finally { addingEntry.value = false }
 }
+function openToInvoice(o: Order) {
+  toInvoiceTarget.value = o
+  invoiceForm.value = { invoice_date: today, due_date: '', kind: 'final', copy_items: true }
+  invoiceError.value = ''
+  toInvoiceDialog.value = true
+}
+async function doCreateInvoice() {
+  if (!toInvoiceTarget.value) return
+  creatingInvoice.value = true; invoiceError.value = ''
+  try {
+    await ordersApi.toInvoice(toInvoiceTarget.value.id, {
+      invoice_date: invoiceForm.value.invoice_date,
+      due_date: invoiceForm.value.due_date || null,
+      kind: invoiceForm.value.kind,
+      copy_items: invoiceForm.value.copy_items,
+    })
+    toInvoiceDialog.value = false
+    router.push({ name: 'invoices' })
+  } catch (e) { invoiceError.value = e instanceof Error ? e.message : 'Fehler beim Erstellen' }
+  finally { creatingInvoice.value = false }
+}
+
 async function deleteEntry(e: TimeEntry) {
   if (!selectedOrder.value) return
   await ordersApi.deleteTime(selectedOrder.value.id, e.id)
