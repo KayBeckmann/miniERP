@@ -225,10 +225,11 @@ Jede Phase endet mit einem **lauffähigen Stand** (build grün, manueller Smoket
 - [x] Paperless-Instanz: http://10.10.0.26:8000 (Token: jenny-User)
 - [ ] Admin-Hinweis: Custom Fields (auftrag_no, rechnung_no, sparte) manuell anlegen
 
-### Phase 6 – Auswertungen & Steuerberater-Export ✅ Basis abgeschlossen (2026-05-09)
-- [ ] Offene Angebote, offene Rechnungen, fällige Lieferantenrechnungen
-- [ ] Marge pro Auftrag, Stunden pro Kunde/Monat
-- [ ] **Steuerberater-Export** (zentral, weil das die laufende Schnittstelle ist):
+### Phase 6 – Auswertungen & Steuerberater-Export ✅ abgeschlossen (2026-05-09)
+- [x] Offene Angebote, offene Rechnungen, fällige Lieferantenrechnungen
+- [x] Marge pro Auftrag (invoiced total vs. Zeitkosten), Stunden pro Auftrag
+- [x] **USt-Vorschau**: Soll-USt − Vorsteuer = Zahllast für Periodenauswahl
+- [x] **Steuerberater-Export** (zentral, weil das die laufende Schnittstelle ist):
       - Periodenwahl (Monat / Quartal / Jahr)
       - **Pro Sparte aufgeschlüsselt**, aber als ein Export-Bundle
         (Bau und Huf gehören demselben Unternehmen, der Steuerberater erkennt die
@@ -243,7 +244,7 @@ Jede Phase endet mit einem **lauffähigen Stand** (build grün, manueller Smoket
         - `belege/` Ordner mit allen PDFs aus dem Zeitraum
         - `manifest.json` mit Hashes (für GoBD-Nachvollziehbarkeit)
       - Optional: DATEV-CSV-Format (im Backlog, sobald der StB sagt was er bevorzugt)
-- [ ] USt-Vorschau (Soll-USt fällig, Vorsteuer aus Eingangsrechnungen)
+- [x] USt-Vorschau (Soll-USt fällig, Vorsteuer aus Eingangsrechnungen)
 
 ### Phase 7 – LLM-Komfort (≈ 1–2 Tage)
 - [ ] Service `services/llm.py` als einziger Ollama-Client
