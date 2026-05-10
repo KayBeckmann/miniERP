@@ -203,6 +203,9 @@ Jede Phase endet mit einem **lauffähigen Stand** (build grün, manueller Smoket
 - [x] TimeEntry-Erfassung: Wochenansicht + Schnellbuchung mobil (Vuetify, PWA-tauglich)
 - [x] Soll/Ist-Auswertung pro Auftrag (Stunden + Material)
 - [x] `POST /orders/{id}/to-invoice` — Auftrag in Rechnung wandeln (final/Teil/Abschlag)
+- [x] **Budget-Übernahme aus Angebot** (2026-05-10): `to-order` berechnet automatisch
+      `budget_hours` (Summe aller Positionen mit Einheit `h`) und
+      `budget_material` (Netto-Summe aller übrigen Positionen)
 
 ### Phase 4 – Ausgangsrechnungen ✅ abgeschlossen (2026-05-09)
 - [x] Rechnung aus Auftrag (anteilig nach Stunden/Material) oder aus Angebot (1:1)
