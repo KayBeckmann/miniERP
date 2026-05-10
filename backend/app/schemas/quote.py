@@ -107,6 +107,7 @@ class QuoteRead(BaseModel):
     notes: str | None
     internal_notes: str | None
     pdf_path: str | None
+    paperless_doc_id: int | None = None
     version: int
     created_at: datetime
     updated_at: datetime

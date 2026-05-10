@@ -43,6 +43,7 @@ export interface Quote {
   notes: string | null
   internal_notes: string | null
   pdf_path: string | null
+  paperless_doc_id: number | null
   version: number
   created_at: string
   updated_at: string

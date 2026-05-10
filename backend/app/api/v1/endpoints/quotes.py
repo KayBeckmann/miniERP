@@ -27,6 +27,7 @@ from app.schemas.quote import (
 )
 from app.services import calculation, number_sequence
 from app.services import pdf as pdf_service
+from app.services import paperless as paperless_service
 
 router = APIRouter()
 
@@ -248,6 +249,22 @@ async def convert_to_order(
     return OrderRead.model_validate(order)
 
 
+@router.get("/{quote_id}/preview")
+async def preview_quote(
+    quote_id: int,
+    tenant_id: int = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+) -> Response:
+    """Gibt das Angebot als HTML zurück (kein Gotenberg, sofortige Vorschau)."""
+    loaded = await _load_quote(db, quote_id)
+    quote = await _get_raw_or_404(db, quote_id, tenant_id)
+    customer = await db.get(Customer, quote.customer_id)
+    tenant = await db.get(Tenant, tenant_id)
+    html = pdf_service.render_quote_html(loaded, customer, tenant)
+    return Response(content=html, media_type="text/html; charset=utf-8")
+
+
 @router.get("/{quote_id}/pdf")
 async def generate_pdf(
     quote_id: int,
@@ -266,6 +283,23 @@ async def generate_pdf(
     path = pdf_service.pdf_path(quote.quote_no)
     path.write_bytes(pdf_bytes)
     quote.pdf_path = str(path)
+
+    # Paperless-ngx: PDF automatisch hochladen (graceful wenn offline)
+    if not quote.paperless_doc_id:
+        try:
+            doc_id = await paperless_service.upload_document(
+                filename=f"{quote.quote_no}.pdf",
+                content=pdf_bytes,
+            )
+            if isinstance(doc_id, int) and doc_id > 0:
+                quote.paperless_doc_id = doc_id
+                await paperless_service.set_custom_fields(doc_id, {
+                    "rechnung_no": quote.quote_no,
+                    "sparte": tenant.code if tenant else "",
+                })
+        except Exception:
+            pass  # Paperless offline → PDF-Download trotzdem fortsetzen
+
     await db.commit()
     return Response(
         content=pdf_bytes, media_type="application/pdf",

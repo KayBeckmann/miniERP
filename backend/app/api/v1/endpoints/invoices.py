@@ -16,6 +16,7 @@ from app.schemas.invoice import (
     InvoiceStatusUpdate, InvoiceUpdate, PaymentCreate, PaymentRead,
 )
 from app.services import calculation, number_sequence, pdf as pdf_service
+from app.services import paperless as paperless_service
 
 router = APIRouter()
 
@@ -176,6 +177,21 @@ async def add_payment(
     return payment
 
 
+@router.get("/{invoice_id}/preview")
+async def preview_invoice(
+    invoice_id: int,
+    tenant_id: int = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+) -> Response:
+    """Gibt die Rechnung als HTML zurück (kein Gotenberg, sofortige Vorschau)."""
+    invoice = await _get_or_404(db, invoice_id, tenant_id)
+    customer = await db.get(Customer, invoice.customer_id)
+    tenant = await db.get(Tenant, tenant_id)
+    html = pdf_service.render_invoice_html(invoice, customer, tenant)
+    return Response(content=html, media_type="text/html; charset=utf-8")
+
+
 @router.get("/{invoice_id}/pdf")
 async def generate_pdf(
     invoice_id: int,
@@ -195,6 +211,23 @@ async def generate_pdf(
     path.write_bytes(pdf_bytes)
     invoice.pdf_path = str(path)
     invoice.pdf_sha256 = sha
+
+    # Paperless-ngx: PDF automatisch hochladen (graceful wenn offline)
+    if not invoice.paperless_doc_id:
+        try:
+            doc_id = await paperless_service.upload_document(
+                filename=f"{invoice.invoice_no}.pdf",
+                content=pdf_bytes,
+            )
+            if isinstance(doc_id, int) and doc_id > 0:
+                invoice.paperless_doc_id = doc_id
+                await paperless_service.set_custom_fields(doc_id, {
+                    "rechnung_no": invoice.invoice_no,
+                    "sparte": tenant.code if tenant else "",
+                })
+        except Exception:
+            pass
+
     await db.commit()
     return Response(
         content=pdf_bytes,

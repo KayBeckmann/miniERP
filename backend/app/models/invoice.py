@@ -29,6 +29,7 @@ class Invoice(Base):
     internal_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     pdf_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
     pdf_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    paperless_doc_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 

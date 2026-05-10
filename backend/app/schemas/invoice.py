@@ -87,6 +87,8 @@ class InvoiceRead(BaseModel):
     notes: str | None
     internal_notes: str | None
     pdf_path: str | None
+    pdf_sha256: str | None
+    paperless_doc_id: int | None = None
     created_at: datetime
     updated_at: datetime
     items: list[InvoiceItemRead] = []

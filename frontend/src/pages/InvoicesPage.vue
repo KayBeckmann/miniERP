@@ -38,7 +38,8 @@
             <td class="text-right">{{ fmtEur(inv.total) }}</td>
             <td class="text-right" :class="openAmount(inv) > 0 && inv.status !== 'paid' ? 'text-warning font-weight-bold' : ''">{{ fmtEur(openAmount(inv)) }}</td>
             <td class="text-right">
-              <v-btn icon size="small" variant="text" title="PDF" @click="downloadPdf(inv)"><v-icon>mdi-file-pdf-box</v-icon></v-btn>
+              <v-btn icon size="small" variant="text" title="Vorschau" @click="openPreview(inv)"><v-icon>mdi-eye-outline</v-icon></v-btn>
+              <v-btn icon size="small" variant="text" title="PDF herunterladen" @click="downloadPdf(inv)"><v-icon>mdi-file-pdf-box</v-icon></v-btn>
               <v-btn icon size="small" variant="text" @click="openPayment(inv)" title="Zahlung buchen"><v-icon>mdi-cash-check</v-icon></v-btn>
               <v-btn v-if="TRANSITIONS[inv.status as InvoiceStatus]?.length" icon size="small" variant="text" title="Status ändern" @click="openStatus(inv)"><v-icon>mdi-state-machine</v-icon></v-btn>
               <v-btn v-if="inv.status === 'draft'" icon size="small" variant="text" color="error" @click="askDelete(inv)"><v-icon>mdi-delete</v-icon></v-btn>
@@ -103,6 +104,28 @@
           <v-spacer />
           <v-btn variant="text" @click="paymentDialog = false">Abbrechen</v-btn>
           <v-btn color="primary" variant="flat" :loading="paying" @click="bookPayment">Buchen</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- Vorschau Dialog -->
+    <v-dialog v-model="previewDialog" max-width="900" scrollable>
+      <v-card>
+        <v-card-title class="d-flex align-center">
+          Vorschau — {{ previewTarget?.invoice_no }}
+          <v-spacer />
+          <v-btn size="small" variant="text" icon @click="previewDialog = false"><v-icon>mdi-close</v-icon></v-btn>
+        </v-card-title>
+        <v-card-text style="padding:0; height:75vh;">
+          <div v-if="previewLoading" class="d-flex justify-center align-center" style="height:100%">
+            <v-progress-circular indeterminate />
+          </div>
+          <iframe v-else :srcdoc="previewHtml" style="width:100%;height:100%;border:none;" />
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="previewDialog = false">Schließen</v-btn>
+          <v-btn v-if="previewTarget" color="primary" variant="flat" prepend-icon="mdi-file-pdf-box" @click="downloadPdf(previewTarget); previewDialog = false">PDF herunterladen</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -174,6 +197,10 @@ const paymentTarget = ref<Invoice | null>(null)
 const paying = ref(false)
 const statusDialog = ref(false)
 const statusTarget = ref<Invoice | null>(null)
+const previewDialog = ref(false)
+const previewTarget = ref<Invoice | null>(null)
+const previewHtml = ref('')
+const previewLoading = ref(false)
 
 const today = new Date().toISOString().slice(0, 10)
 const due = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10)
@@ -251,6 +278,23 @@ async function bookPayment() {
 }
 
 function openStatus(inv: Invoice) { statusTarget.value = inv; statusDialog.value = true }
+
+async function openPreview(inv: Invoice) {
+  previewTarget.value = inv
+  previewDialog.value = true
+  previewLoading.value = true
+  previewHtml.value = ''
+  try {
+    const res = await fetch(`/api/v1/invoices/${inv.id}/preview`, {
+      headers: {
+        Authorization: `Bearer ${auth.accessToken}`,
+        ...(auth.currentTenant ? { 'X-Tenant-ID': String(auth.currentTenant.id) } : {}),
+      },
+    })
+    previewHtml.value = await res.text()
+  } catch { previewHtml.value = '<p style="padding:20px;color:red">Vorschau nicht verfügbar</p>' }
+  finally { previewLoading.value = false }
+}
 async function applyStatus(s: InvoiceStatus) {
   if (!statusTarget.value) return
   try { await api.patch(`/invoices/${statusTarget.value.id}/status`, { status: s }); statusDialog.value = false; load() }

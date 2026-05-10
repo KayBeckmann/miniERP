@@ -10,6 +10,7 @@
         </v-chip>
       </h1>
       <v-btn v-if="quote && TRANSITIONS[quote.status].length" variant="outlined" @click="statusDialog = true">Status</v-btn>
+      <v-btn v-if="quote" variant="outlined" prepend-icon="mdi-eye-outline" @click="openPreview">Vorschau</v-btn>
       <v-btn v-if="quote" variant="outlined" prepend-icon="mdi-file-pdf-box" :loading="pdfLoading" @click="downloadPdf">PDF</v-btn>
       <v-btn color="primary" :loading="saving" @click="save">{{ isNew ? 'Erstellen' : 'Speichern' }}</v-btn>
     </div>
@@ -134,6 +135,31 @@
         </v-card>
       </v-col>
     </v-row>
+
+    <!-- Vorschau Dialog -->
+    <v-dialog v-model="previewDialog" max-width="900" scrollable>
+      <v-card>
+        <v-card-title class="d-flex align-center">
+          Vorschau — {{ quote?.quote_no }}
+          <v-spacer />
+          <v-btn size="small" variant="text" icon @click="previewDialog = false"><v-icon>mdi-close</v-icon></v-btn>
+        </v-card-title>
+        <v-card-text style="padding:0; height:75vh;">
+          <div v-if="previewLoading" class="d-flex justify-center align-center" style="height:100%">
+            <v-progress-circular indeterminate />
+          </div>
+          <iframe v-else :srcdoc="previewHtml" style="width:100%;height:100%;border:none;" />
+        </v-card-text>
+        <v-card-actions>
+          <v-alert v-if="quote?.paperless_doc_id" type="success" variant="tonal" density="compact" class="text-caption flex-grow-1">
+            In Paperless gespeichert (ID {{ quote.paperless_doc_id }})
+          </v-alert>
+          <v-spacer />
+          <v-btn variant="text" @click="previewDialog = false">Schließen</v-btn>
+          <v-btn color="primary" variant="flat" prepend-icon="mdi-file-pdf-box" :loading="pdfLoading" @click="downloadPdf">PDF herunterladen</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
 
     <!-- Status Dialog -->
     <v-dialog v-model="statusDialog" max-width="360">
@@ -431,6 +457,28 @@ function toItemIn(item: LocalItem, idx: number): QuoteItemIn {
     unit_price: item.unit_price, discount_pct: item.discount_pct || '0.00',
     vat_rate: item.vat_rate, material_id: item.material_id, position: idx + 1,
   }
+}
+
+// ── Vorschau ────────────────────────────────────────────────────────────────
+const previewDialog = ref(false)
+const previewHtml = ref('')
+const previewLoading = ref(false)
+
+async function openPreview() {
+  if (!quoteId.value) return
+  previewDialog.value = true
+  previewLoading.value = true
+  previewHtml.value = ''
+  try {
+    const res = await fetch(`/api/v1/quotes/${quoteId.value}/preview`, {
+      headers: {
+        Authorization: `Bearer ${auth.accessToken}`,
+        ...(auth.currentTenant ? { 'X-Tenant-ID': String(auth.currentTenant.id) } : {}),
+      },
+    })
+    previewHtml.value = await res.text()
+  } catch { previewHtml.value = '<p style="padding:20px;color:red">Vorschau nicht verfügbar</p>' }
+  finally { previewLoading.value = false }
 }
 
 // ── PDF ─────────────────────────────────────────────────────────────────────

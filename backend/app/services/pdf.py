@@ -15,6 +15,14 @@ def _env() -> Environment:
     return Environment(loader=FileSystemLoader(str(_TEMPLATE_DIR)), autoescape=True)
 
 
+def render_quote_html(quote, customer: Customer, tenant: Tenant) -> str:
+    return _env().get_template("quote.html").render(quote=quote, customer=customer, tenant=tenant)
+
+
+def render_invoice_html(invoice, customer: Customer, tenant: Tenant) -> str:
+    return _env().get_template("invoice.html").render(invoice=invoice, customer=customer, tenant=tenant)
+
+
 async def render_quote_pdf(quote: Quote, customer: Customer, tenant: Tenant) -> bytes:
     env = _env()
     template = env.get_template("quote.html")
