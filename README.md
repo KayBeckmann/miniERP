@@ -5,25 +5,13 @@ Kleines, selbst gebautes ERP für ein Einzelunternehmen mit zwei Sparten:
 Aufträge, Ausgangs- und Eingangsrechnungen, Stundenerfassung und einfache
 Auswertungen – ohne den Pflegeaufwand eines klassischen Materialstamms.
 
-> **Status: Phase 0 abgeschlossen** — Stack läuft (`postgres`, `backend`,
-> `frontend`). Nächster Schritt: Phase 1 (Stammdaten).
-> Details siehe [`Roadmap.md`](./Roadmap.md).
+> **Status: Phasen 0–8 implementiert** — vollständig lauffähig.
+> Details und Fortschritt in der [`Roadmap.md`](./Roadmap.md).
 
 ## Idee
 
-Die Inhaberin schreibt ihre Angebote bisher per Hand in LibreOffice Writer.
-Wiederholungen im Material gibt es kaum, eine klassische Stammpflege wäre
-teurer als der Nutzen. miniERP setzt deshalb auf:
-
-- **Freitext-first Positionen**: Beschreibung + Menge + Preis genügt; ein
-  Materialstamm wächst optional aus tatsächlich wiederkehrenden Einträgen.
-- **Zwei Sparten** (`bau`, `huf`) eines Einzelunternehmens – eigene
-  Nummernkreise, Templates und Auswertungen, steuerlich aber ein Topf.
-- **LLM-Unterstützung lokal** über Ollama: Stichworte zu Positionen
-  ausformulieren, Lieferantenrechnungen strukturieren, Texte für
-  Anschreiben/Mahnungen entwerfen.
-- **GoBD- und E-Rechnungs-fähig**: XRechnung/ZUGFeRD bei B2B,
-  PDF-Hashkette, append-only Audit-Log.
+Freitext-first: Position = Beschreibung + Menge + Preis, kein Stammpflege-Zwang.
+Zwei Sparten eines Einzelunternehmens mit eigenen Nummernkreisen und Templates.
 
 ## Stack
 
@@ -34,24 +22,153 @@ teurer als der Nutzen. miniERP setzt deshalb auf:
 | Frontend       | Vue 3 · Vite · TypeScript · Pinia · Vuetify 3 (PWA)           |
 | Auth           | JWT (Access + Refresh) · argon2                               |
 | PDF            | Gotenberg-Sidecar (HTML/Jinja → PDF/A)                        |
-| OCR            | Paperless-ngx (eingebaut), Tesseract als Fallback             |
-| LLM            | Ollama (lokal), z. B. `llama3.1` / `qwen2.5` / `mistral`     |
-| Dokumentablage | Paperless-ngx (Default), Nextcloud als zweiter Adapter        |
-| Automation     | n8n via Webhooks (keine Geschäftslogik in n8n)                |
+| Dokumente      | Paperless-ngx (eingebaut, OCR, Custom Fields, Webhooks)       |
+| LLM            | Ollama lokal — `llama3.2:3b` empfohlen (2 GB RAM, CPU-only)   |
+| Automation     | n8n via Webhooks                                              |
 | Container      | Docker Compose                                                |
-| Tests          | pytest (Backend) · Vitest/Playwright (Frontend, ab Phase 2)  |
-| Lint/Format    | ruff + black (Backend) · eslint + prettier (Frontend)         |
 
-## Module (geplant)
+## Services im Stack
 
-- **Stammdaten**: Kunden, Lieferanten, optionaler Materialstamm
-- **Angebote → Aufträge → Auftragsbestätigung → Rechnung** (Teil/Abschlag/Schluss) → Gutschrift
-- **Stundenerfassung** (mobil-tauglich, PWA)
-- **Lieferantenrechnungen** mit OCR-Vorbefüllung und Auftragszuordnung
-- **Auswertungen und Steuerberater-Export** (Zip mit CSVs + Belegen, pro Sparte aufgeschlüsselt)
-- Spätere Ausbaustufen: FinTS-Zahlungsabgleich, DATEV-Export, Peppol-Versand
+| Service            | Port   | Beschreibung                              |
+| ------------------ | ------ | ----------------------------------------- |
+| `frontend`         | 3000   | Vue 3 Web-UI (Nginx)                      |
+| `backend`          | intern | FastAPI + Alembic-Migrationen             |
+| `postgres`         | intern | miniERP-Datenbank                         |
+| `gotenberg`        | intern | HTML → PDF/A (Gotenberg 8)                |
+| `paperless`        | 8001   | Paperless-ngx Dokumentenmanagement        |
+| `paperless-db`     | intern | Eigene PostgreSQL-DB für Paperless        |
+| `paperless-redis`  | intern | Redis Task-Queue für Paperless            |
+| `ollama`           | intern | Lokales LLM (llama3.2:3b empfohlen)       |
+| `n8n`              | 5678   | Workflow-Automation (Profile: automation) |
 
-Genauer Phasenplan und Datenmodell stehen in der [`Roadmap.md`](./Roadmap.md).
+## Schnellstart
+
+```bash
+# 1. Umgebungsvariablen anlegen
+cp .env.example .env
+# .env anpassen — mindestens:
+#   POSTGRES_PASSWORD, SECRET_KEY, FIRST_SUPERUSER_PASSWORD
+#   PAPERLESS_DBPASS, PAPERLESS_SECRET_KEY, PAPERLESS_ADMIN_PASSWORD
+
+# 2. Stack starten
+docker compose up -d
+
+# 3. miniERP Web-UI
+open http://localhost:3000
+# Login: FIRST_SUPERUSER_EMAIL / FIRST_SUPERUSER_PASSWORD
+
+# 4. Ollama-Modell laden (einmalig, ~2 GB Download)
+docker exec -it minierp-ollama-1 ollama pull llama3.2:3b
+
+# 5. API-Docs (Swagger)
+open http://localhost:3000/api/v1/docs
+```
+
+## Paperless-ngx Einrichtung (Erststart)
+
+```bash
+# 1. Stack starten (Paperless-ngx wird unter Port 8001 erreichbar)
+docker compose up -d
+
+# 2. Paperless aufrufen und als Admin anmelden
+open http://localhost:8001
+# Login: PAPERLESS_ADMIN_USER / PAPERLESS_ADMIN_PASSWORD aus .env
+
+# 3. API-Token erzeugen
+#    Profil (oben rechts) → Mein Profil → API-Token → Token erzeugen → kopieren
+
+# 4. Token in .env eintragen
+#    PAPERLESS_TOKEN=<kopierter-token>
+
+# 5. Backend neu starten (damit Token aktiv wird)
+docker compose restart backend
+
+# 6. Optional: Custom Fields für Rechnungsverknüpfung anlegen
+#    Admin → Custom Fields → "rechnung_no" (Text) + "auftrag_no" (Text) + "sparte" (Text)
+```
+
+## VPS-Deployment
+
+```bash
+# Voraussetzungen: Docker + Docker Compose auf dem VPS
+
+# 1. Repo klonen
+git clone https://github.com/KayBeckmann/miniERP.git
+cd miniERP
+
+# 2. .env anlegen und anpassen
+cp .env.example .env
+nano .env   # alle change_me-Werte ersetzen
+
+# 3. Images bauen und Stack starten
+docker compose up -d --build
+
+# 4. Ollama-Modell laden (einmalig)
+docker exec -it minierp-ollama-1 ollama pull llama3.2:3b
+
+# 5. Paperless einrichten (siehe oben)
+
+# Tipp: Reverse-Proxy (nginx/Traefik) vor die Dienste schalten
+# und HTTPS per Let's Encrypt aktivieren.
+# Ports: frontend:3000  paperless:8001  n8n:5678 (nur mit --profile automation)
+```
+
+### Ollama Modellwahl
+
+| Modell         | RAM   | Qualität (DE) | Empfehlung             |
+| -------------- | ----- | ------------- | ---------------------- |
+| `llama3.2:3b`  | ~2 GB | ★★★★☆         | **Standard-Empfehlung** |
+| `gemma3:4b`    | ~3 GB | ★★★★☆         | Gute Alternative        |
+| `mistral:7b`   | ~5 GB | ★★★★★         | Bei ≥ 8 GB RAM          |
+| `phi3:mini`    | ~2 GB | ★★★☆☆         | Sehr schnell, weniger DE|
+
+```bash
+# Modell wechseln (Beispiel: mistral)
+docker exec -it minierp-ollama-1 ollama pull mistral:7b
+# In backend/.env: (Backend nutzt den Namen aus dem API-Aufruf, kein Neustart nötig)
+```
+
+### GPU-Support (NVIDIA)
+
+```yaml
+# In docker-compose.yml unter ollama: uncomment deploy-Block
+ollama:
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - driver: nvidia
+            count: all
+            capabilities: [gpu]
+```
+
+## Optionale Profile
+
+```bash
+# n8n Workflow-Automation
+docker compose --profile automation up -d n8n
+
+# Frontend Dev-Server (Vite, Hot-Reload)
+docker compose --profile dev up -d frontend-dev
+```
+
+## Entwicklung
+
+```bash
+# Backend
+cd backend
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements-dev.txt
+pytest                              # Tests
+ruff check . && black --check .     # Lint
+alembic upgrade head                # Migrationen
+
+# Frontend
+cd frontend
+npm install
+npm run dev     # http://localhost:5173
+npm run build   # Produktions-Build
+```
 
 ## Repo-Struktur
 
@@ -61,92 +178,19 @@ miniERP/
 │   ├── app/
 │   │   ├── api/v1/            Router pro Modul
 │   │   ├── core/              config, security, db
-│   │   ├── models/            SQLAlchemy ORM (Tenant, User, …)
+│   │   ├── models/            SQLAlchemy ORM
 │   │   ├── schemas/           Pydantic
-│   │   ├── services/          Geschäftslogik (PDF, LLM, …)
-│   │   └── main.py
-│   ├── alembic/               Migrationen
-│   ├── tests/
-│   ├── Dockerfile
-│   └── requirements.txt
-├── frontend/                  Vue 3 + Vuetify 3 (PWA)
-│   ├── src/
-│   │   ├── api/               API-Client + Typen
-│   │   ├── components/        Layout, wiederverwendbare Komponenten
-│   │   ├── layouts/           DefaultLayout mit Header + Drawer
-│   │   ├── pages/             Login, Dashboard, alle Module
-│   │   ├── router/            Vue Router mit Auth-Guard
-│   │   └── stores/            Pinia (auth + aktiver Mandant)
-│   └── Dockerfile
-├── n8n/workflows/             exportierte Workflows (ab Phase 5)
-├── templates/pdf/             HTML/CSS-Templates pro Mandant (ab Phase 2)
-├── docs/                      Datenmodell, ADRs
-├── .github/workflows/         CI: lint + tests
+│   │   └── services/          PDF, LLM, Paperless, Kalkulation
+│   ├── alembic/               Migrationen 0001–0009
+│   └── templates/pdf/         Jinja2-HTML-Templates
+├── frontend/
+│   └── src/
+│       ├── api/               API-Client + TypeScript-Typen
+│       ├── pages/             Alle Seiten (Dashboard, Angebote, …)
+│       └── stores/            Pinia (Auth, Snackbar)
 ├── docker-compose.yml
 ├── .env.example
-├── Roadmap.md
-└── README.md
-```
-
-## Schnellstart
-
-```bash
-# 1. Umgebungsvariablen anlegen
-cp .env.example .env
-# .env anpassen: POSTGRES_PASSWORD, SECRET_KEY, FIRST_SUPERUSER_PASSWORD
-
-# 2. Stack starten (postgres + backend + frontend)
-docker compose up -d
-
-# 3. Frontend aufrufen
-open http://localhost:3000
-# Login: FIRST_SUPERUSER_EMAIL / FIRST_SUPERUSER_PASSWORD aus .env
-
-# 4. API-Docs (Swagger)
-open http://localhost:3000/api/v1/docs
-```
-
-### Optionale Profile
-
-```bash
-# Entwicklungsmodus (Vite Dev-Server mit Hot-Reload auf Port 5173)
-docker compose --profile dev up -d frontend-dev
-
-# PDF-Service (Gotenberg)
-docker compose --profile pdf up -d gotenberg
-
-# Workflow-Automation (n8n)
-docker compose --profile automation up -d n8n
-
-# Lokales LLM (Ollama)
-docker compose --profile llm up -d ollama
-```
-
-## Entwicklung
-
-### Backend
-
-```bash
-cd backend
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements-dev.txt
-# Tests
-pytest
-# Lint
-ruff check . && black --check .
-# Migration erstellen
-alembic revision --autogenerate -m "beschreibung"
-alembic upgrade head
-```
-
-### Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev        # Vite Dev-Server auf http://localhost:5173
-npm run lint       # ESLint
-npm run build      # Produktions-Build
+└── Roadmap.md
 ```
 
 ## Lizenz

@@ -15,7 +15,7 @@ Aufträge, Ausgangs- und Eingangsrechnungen, Stundenerfassung, Materialstamm, Au
 | PDF            | **Gotenberg** als Sidecar-Container (HTTP, HTML/Jinja → PDF/A); Backend rendert Jinja, schickt HTML an Gotenberg, bekommt PDF zurück |
 | Dokumentablage | **Paperless-ngx als primärer Belegspeicher** (REST, OCR, Custom Fields, Webhooks); Nextcloud optional als Consume-Ordner / Briefpapier-Share. MinIO bleibt nur als späterer Adapter im Backlog. |
 | Automation     | n8n via Webhooks ins Backend (keine Geschäftslogik in n8n; n8n macht **nicht** die REST-API) |
-| LLM            | Ollama (lokal), Backend-Service als alleiniger Konsument; OpenAI-Fallback nur per Config-Schalter, default aus |
+| LLM            | Ollama (lokal), empfohlen: `llama3.2:3b` (2 GB RAM, CPU-only), alternativ `gemma3:4b` / `mistral:7b` |
 | OCR            | Tesseract (für Fotos/Scans ohne Textlayer) → Text → Ollama-Strukturierung (JSON) |
 | Container      | docker-compose (postgres, backend, frontend, n8n, ollama, paperless optional) |
 | Tests          | pytest (Backend) + Vitest/Playwright (Frontend, später)                      |
@@ -267,6 +267,20 @@ Jede Phase endet mit einem **lauffähigen Stand** (build grün, manueller Smoket
       Zahlungen so lange manuell.
 - [ ] DATEV-CSV-Variante des Steuerberater-Exports (sobald StB-Format bekannt)
 - [ ] Peppol-Versand für E-Rechnungen (optional)
+
+### Phase 9 – E-Mail-Integration (TODO)
+- [ ] **SMTP-Versand**: Angebote und Rechnungen direkt als PDF per E-Mail versenden
+      - `POST /quotes/{id}/send-email` — Angebot an Kunde senden
+      - `POST /invoices/{id}/send-email` — Rechnung an Kunde senden
+      - SMTP-Konfiguration in `.env` (Host, Port, TLS, User, Password)
+      - E-Mail-Template (Jinja2) pro Sparte und Belegart
+      - Versandstatus und Zeitstempel auf Quote/Invoice speichern
+- [ ] **POP3/IMAP-Abruf**: Eingehende E-Mails auf Lieferantenrechnungen prüfen
+      - Anhänge (PDF) automatisch aus E-Mails extrahieren
+      - PDF → Paperless-ngx hochladen → OCR → Ollama-Strukturierung
+      - Entwurf `SupplierInvoice` automatisch anlegen
+      - Konfiguration: POP3/IMAP-Host, Port, SSL, Credentials in `.env`
+- [ ] E-Mail-Archivierung: Versendete E-Mails in Paperless ablegen (optional)
 
 ## 4. Out of Scope (vorerst)
 - Kassensystem, Lagerverwaltung mit Beständen, Filialen

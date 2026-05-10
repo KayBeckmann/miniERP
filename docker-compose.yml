@@ -1,4 +1,7 @@
 services:
+
+  # ── miniERP Core ─────────────────────────────────────────────────────────────
+
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
@@ -26,7 +29,7 @@ services:
       FIRST_SUPERUSER_PASSWORD: ${FIRST_SUPERUSER_PASSWORD:?FIRST_SUPERUSER_PASSWORD required}
       OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
       GOTENBERG_URL: ${GOTENBERG_URL:-http://gotenberg:3000}
-      PAPERLESS_URL: ${PAPERLESS_URL:-http://localhost:8000}
+      PAPERLESS_URL: ${PAPERLESS_URL:-http://paperless:8000}
       PAPERLESS_TOKEN: ${PAPERLESS_TOKEN:-}
     depends_on:
       postgres:
@@ -42,6 +45,124 @@ services:
     networks:
       - internal
 
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    restart: unless-stopped
+    networks:
+      - internal
+
+  # ── Paperless-ngx Dokumentenmanagement ──────────────────────────────────────
+  # Zugriff: http://<server>:${PAPERLESS_PORT:-8001}
+  # Erster Start: Admin-User wird automatisch angelegt (PAPERLESS_ADMIN_*)
+  # API-Token nach erstem Login erzeugen und als PAPERLESS_TOKEN in .env eintragen
+
+  paperless-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - paperless_redis_data:/data
+    networks:
+      - internal
+
+  paperless-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: paperless
+      POSTGRES_USER: paperless
+      POSTGRES_PASSWORD: ${PAPERLESS_DBPASS:?PAPERLESS_DBPASS required}
+    volumes:
+      - paperless_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U paperless"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal
+
+  paperless:
+    image: ghcr.io/paperless-ngx/paperless-ngx:latest
+    restart: unless-stopped
+    depends_on:
+      paperless-db:
+        condition: service_healthy
+      paperless-redis:
+        condition: service_started
+    ports:
+      - "${PAPERLESS_PORT:-8001}:8000"
+    environment:
+      PAPERLESS_REDIS: redis://paperless-redis:6379
+      PAPERLESS_DBHOST: paperless-db
+      PAPERLESS_DBNAME: paperless
+      PAPERLESS_DBUSER: paperless
+      PAPERLESS_DBPASS: ${PAPERLESS_DBPASS}
+      PAPERLESS_SECRET_KEY: ${PAPERLESS_SECRET_KEY:?PAPERLESS_SECRET_KEY required}
+      PAPERLESS_ADMIN_USER: ${PAPERLESS_ADMIN_USER:-admin}
+      PAPERLESS_ADMIN_PASSWORD: ${PAPERLESS_ADMIN_PASSWORD:?PAPERLESS_ADMIN_PASSWORD required}
+      PAPERLESS_ADMIN_MAIL: ${PAPERLESS_ADMIN_MAIL:-admin@localhost}
+      PAPERLESS_URL: ${PAPERLESS_PUBLIC_URL:-http://localhost:8001}
+      PAPERLESS_TIME_ZONE: ${TZ:-Europe/Berlin}
+      PAPERLESS_OCR_LANGUAGE: deu+eng
+      PAPERLESS_OCR_MODE: skip_noarchive
+      PAPERLESS_CONSUMER_POLLING: 60
+    volumes:
+      - paperless_data:/usr/src/paperless/data
+      - paperless_media:/usr/src/paperless/media
+      - paperless_export:/usr/src/paperless/export
+      - paperless_consume:/usr/src/paperless/consume
+    networks:
+      - internal
+
+  # ── Ollama (lokales LLM) ─────────────────────────────────────────────────────
+  # Modell beim ersten Start laden:
+  #   docker exec -it minierp-ollama-1 ollama pull llama3.2:3b
+  # GPU-Support (NVIDIA): OLLAMA_CUDA=1 + deploy.resources.reservations.devices
+
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    environment:
+      OLLAMA_KEEP_ALIVE: "24h"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - internal
+    # GPU-Support (NVIDIA, optional — auskommentieren wenn keine GPU vorhanden):
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  # ── Optionale Services ───────────────────────────────────────────────────────
+
+  # n8n Workflow-Automation (starten mit: docker compose --profile automation up -d)
+  n8n:
+    image: n8nio/n8n:latest
+    restart: unless-stopped
+    environment:
+      N8N_BASIC_AUTH_ACTIVE: "true"
+      N8N_BASIC_AUTH_USER: ${N8N_USER:-admin}
+      N8N_BASIC_AUTH_PASSWORD: ${N8N_PASSWORD:?N8N_PASSWORD required}
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_DATABASE: ${N8N_DB:-n8n}
+      DB_POSTGRESDB_USER: ${POSTGRES_USER:-minierp}
+      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD}
+      WEBHOOK_URL: ${N8N_WEBHOOK_URL:-http://localhost:5678}
+    ports:
+      - "${N8N_PORT:-5678}:5678"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - internal
+    profiles: ["automation"]
+
+  # Frontend Dev-Server (starten mit: docker compose --profile dev up -d)
   frontend-dev:
     image: node:20-alpine
     working_dir: /app
@@ -57,45 +178,14 @@ services:
       - internal
     profiles: ["dev"]
 
-  gotenberg:
-    image: gotenberg/gotenberg:8
-    restart: unless-stopped
-    networks:
-      - internal
-
-  # n8n und Ollama bei Bedarf einschalten
-  n8n:
-    image: n8nio/n8n:latest
-    restart: unless-stopped
-    environment:
-      N8N_BASIC_AUTH_ACTIVE: "true"
-      N8N_BASIC_AUTH_USER: ${N8N_USER:-admin}
-      N8N_BASIC_AUTH_PASSWORD: ${N8N_PASSWORD:?N8N_PASSWORD required}
-      DB_TYPE: postgresdb
-      DB_POSTGRESDB_HOST: postgres
-      DB_POSTGRESDB_DATABASE: ${N8N_DB:-n8n}
-      DB_POSTGRESDB_USER: ${POSTGRES_USER:-minierp}
-      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD}
-    ports:
-      - "${N8N_PORT:-5678}:5678"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - internal
-    profiles: ["automation"]
-
-  ollama:
-    image: ollama/ollama:latest
-    restart: unless-stopped
-    volumes:
-      - ollama_data:/root/.ollama
-    networks:
-      - internal
-    profiles: ["llm"]
-
 volumes:
   postgres_data:
+  paperless_db_data:
+  paperless_redis_data:
+  paperless_data:
+  paperless_media:
+  paperless_export:
+  paperless_consume:
   ollama_data:
 
 networks:
