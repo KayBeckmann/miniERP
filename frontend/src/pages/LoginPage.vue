@@ -105,6 +105,11 @@ async function login() {
     }
     const data: TokenResponse = await res.json()
     auth.setToken(data.access_token)
+    // User-Info laden und speichern (für Profil-Anzeige)
+    const meRes = await fetch('/api/v1/auth/me', {
+      headers: { Authorization: `Bearer ${data.access_token}` },
+    })
+    if (meRes.ok) auth.setUser(await meRes.json())
     router.push('/dashboard')
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Anmeldung fehlgeschlagen'
