@@ -1,10 +1,11 @@
 """Lieferantenrechnungen — Upload zu Paperless-ngx, OCR-Strukturierung via Ollama."""
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, UploadFile, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.db import get_db
 from app.core.deps import get_current_user, get_tenant_id
 from app.models.supplier_invoice import SupplierInvoice
@@ -91,7 +92,41 @@ async def upload_supplier_invoice(
     return si
 
 
-# ── Webhook von n8n (Paperless → miniERP) ──────────────────────────────────
+# ── Webhook Paperless → miniERP (direkt, kein n8n nötig) ───────────────────
+
+@router.post("/paperless-hook/{document_id}", status_code=status.HTTP_201_CREATED)
+async def paperless_hook(
+    document_id: int,
+    x_tenant_id: int = Header(alias="X-Tenant-ID"),
+    x_internal_token: str = Header(alias="X-Internal-Token"),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Direkt-Webhook für Paperless-ngx (kein JWT, nur interner Token).
+    Wird vom Post-Consume-Script aufgerufen.
+    Konfiguration: INTERNAL_PAPERLESS_TOKEN + PAPERLESS_DEFAULT_TENANT_ID in .env
+    """
+    if not settings.INTERNAL_PAPERLESS_TOKEN:
+        raise HTTPException(403, "INTERNAL_PAPERLESS_TOKEN nicht konfiguriert")
+    if x_internal_token != settings.INTERNAL_PAPERLESS_TOKEN:
+        raise HTTPException(403, "Ungültiger interner Token")
+
+    tenant_id = x_tenant_id
+    existing = (await db.execute(
+        select(SupplierInvoice).where(
+            SupplierInvoice.paperless_document_id == document_id,
+            SupplierInvoice.tenant_id == tenant_id,
+        )
+    )).scalars().first()
+    if existing:
+        return {"id": existing.id, "status": "already_exists"}
+
+    si = SupplierInvoice(tenant_id=tenant_id, paperless_document_id=document_id, status="draft")
+    db.add(si)
+    await db.commit()
+    await db.refresh(si)
+    await _fetch_and_structure(db, si, document_id, tenant_id)
+    return {"id": si.id, "status": "created"}
+
 
 @router.post("/from-paperless/{document_id}", response_model=SupplierInvoiceRead, status_code=status.HTTP_201_CREATED)
 async def from_paperless_webhook(

@@ -31,6 +31,7 @@ services:
       GOTENBERG_URL: ${GOTENBERG_URL:-http://gotenberg:3000}
       PAPERLESS_URL: ${PAPERLESS_URL:-http://paperless:8000}
       PAPERLESS_TOKEN: ${PAPERLESS_TOKEN:-}
+      INTERNAL_PAPERLESS_TOKEN: ${INTERNAL_PAPERLESS_TOKEN:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -52,9 +53,10 @@ services:
       - internal
 
   # ── Paperless-ngx Dokumentenmanagement ──────────────────────────────────────
-  # Zugriff: http://<server>:${PAPERLESS_PORT:-8001}
-  # Erster Start: Admin-User wird automatisch angelegt (PAPERLESS_ADMIN_*)
-  # API-Token nach erstem Login erzeugen und als PAPERLESS_TOKEN in .env eintragen
+  # Web-UI: http://<server>:${PAPERLESS_PORT:-8001}
+  # Ersteinrichtung: Admin-User anlegen, dann API-Token erzeugen → PAPERLESS_TOKEN in .env
+  # Webhook: Paperless ruft nach jeder OCR-Verarbeitung automatisch miniERP an
+  #          → neuer Eingangsrechnungs-Entwurf wird automatisch angelegt
 
   paperless-redis:
     image: redis:7-alpine
@@ -106,22 +108,33 @@ services:
       PAPERLESS_OCR_LANGUAGE: deu+eng
       PAPERLESS_OCR_MODE: skip_noarchive
       PAPERLESS_CONSUMER_POLLING: 60
-      # Direkt-Webhook: Nach Dokument-Verarbeitung miniERP benachrichtigen (kein n8n nötig)
-      # miniERP erstellt automatisch einen Eingangsrechnungs-Entwurf
-      PAPERLESS_POST_CONSUME_SCRIPT: ""  # alternativ: Script-Pfad
-      PAPERLESS_CONSUMER_WEBHOOK_URL: ${PAPERLESS_CONSUMER_WEBHOOK_URL:-}
+      # Webhook: miniERP nach Dokumentenverarbeitung benachrichtigen
+      PAPERLESS_POST_CONSUME_SCRIPT: /scripts/paperless-notify.sh
+      MINIERP_URL: http://backend:8000
+      MINIERP_INTERNAL_TOKEN: ${INTERNAL_PAPERLESS_TOKEN:-}
+      MINIERP_TENANT_ID: ${PAPERLESS_DEFAULT_TENANT_ID:-1}
     volumes:
       - paperless_data:/usr/src/paperless/data
       - paperless_media:/usr/src/paperless/media
       - paperless_export:/usr/src/paperless/export
       - paperless_consume:/usr/src/paperless/consume
+      - ./scripts:/scripts:ro   # Notify-Script (schreibgeschützt)
     networks:
       - internal
 
   # ── Ollama (lokales LLM) ─────────────────────────────────────────────────────
   # Modell beim ersten Start laden:
   #   docker exec -it minierp-ollama-1 ollama pull llama3.2:3b
-  # GPU-Support (NVIDIA): OLLAMA_CUDA=1 + deploy.resources.reservations.devices
+  # Aktive Nutzung: nur auf Nutzeranfrage (KI-Widget im Angebotseditor,
+  #                 Strukturierung von Eingangsrechnungen) — kein Hintergrundprozess.
+  # GPU-Support (NVIDIA, optional — Zeilen unten einkommentieren):
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: all
+  #             capabilities: [gpu]
 
   ollama:
     image: ollama/ollama:latest
@@ -132,43 +145,10 @@ services:
       - ollama_data:/root/.ollama
     networks:
       - internal
-    # GPU-Support (NVIDIA, optional — auskommentieren wenn keine GPU vorhanden):
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: all
-    #           capabilities: [gpu]
 
-  # ── Optionale Services ───────────────────────────────────────────────────────
+  # ── Optionaler Dev-Server ─────────────────────────────────────────────────────
+  # Starten mit: docker compose --profile dev up -d frontend-dev
 
-  # n8n Workflow-Automation — nur bei Bedarf (komplexe Automatisierungen)
-  # Für einfache Paperless → miniERP Integration: PAPERLESS_CONSUMER_WEBHOOK_URL nutzen (s.o.)
-  # Starten mit: docker compose --profile automation up -d n8n
-  n8n:
-    image: n8nio/n8n:latest
-    restart: unless-stopped
-    environment:
-      N8N_BASIC_AUTH_ACTIVE: "true"
-      N8N_BASIC_AUTH_USER: ${N8N_USER:-admin}
-      N8N_BASIC_AUTH_PASSWORD: ${N8N_PASSWORD:-change_me}
-      DB_TYPE: postgresdb
-      DB_POSTGRESDB_HOST: postgres
-      DB_POSTGRESDB_DATABASE: ${N8N_DB:-n8n}
-      DB_POSTGRESDB_USER: ${POSTGRES_USER:-minierp}
-      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD}
-      WEBHOOK_URL: ${N8N_WEBHOOK_URL:-http://localhost:5678}
-    ports:
-      - "${N8N_PORT:-5678}:5678"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - internal
-    profiles: ["automation"]
-
-  # Frontend Dev-Server (starten mit: docker compose --profile dev up -d)
   frontend-dev:
     image: node:20-alpine
     working_dir: /app

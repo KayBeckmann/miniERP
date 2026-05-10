@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     PAPERLESS_URL: str = "http://localhost:8000"
     PAPERLESS_TOKEN: str = ""
 
+    # Interner Token für Paperless-Webhook (kein JWT nötig)
+    # Paperless ruft /api/v1/supplier-invoices/from-paperless/{id} mit diesem Token auf.
+    INTERNAL_PAPERLESS_TOKEN: str = ""
+
     DEBUG: bool = False
 
 
