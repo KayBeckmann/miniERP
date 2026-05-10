@@ -239,9 +239,21 @@ async def convert_to_order(
     else:
         title = f"Aus Angebot {quote.quote_no}"
     order_no = await number_sequence.next_number(db, tenant_id, "order")
+
+    all_items_result = await db.execute(
+        select(QuoteItem).where(QuoteItem.quote_id == quote.id)
+    )
+    all_items = all_items_result.scalars().all()
+    from decimal import Decimal
+    budget_hours = sum(i.qty for i in all_items if i.unit == "h") or None
+    budget_material = sum(i.line_total for i in all_items if i.unit != "h") or None
+    budget_hours = Decimal(str(budget_hours)).quantize(Decimal("0.01")) if budget_hours else None
+    budget_material = Decimal(str(budget_material)).quantize(Decimal("0.01")) if budget_material else None
+
     order = Order(
         tenant_id=tenant_id, customer_id=quote.customer_id, quote_id=quote.id,
         order_no=order_no, title=title, status="open",
+        budget_hours=budget_hours, budget_material=budget_material,
     )
     db.add(order)
     await db.commit()
