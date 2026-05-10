@@ -144,6 +144,21 @@
             <v-col cols="12">
               <v-checkbox v-model="invoiceForm.copy_items" label="Positionen aus Angebot übernehmen" density="compact" hide-details />
             </v-col>
+            <v-col cols="12">
+              <v-checkbox v-model="invoiceForm.include_time_entries" density="compact" hide-details>
+                <template #label>
+                  Stunden als Rechnungsposition
+                  <span v-if="toInvoiceTarget && toInvoiceTarget.hours_billable > 0" class="text-caption text-medium-emphasis ml-1">
+                    ({{ toInvoiceTarget.hours_billable.toFixed(1) }} h verrechenbar)
+                  </span>
+                </template>
+              </v-checkbox>
+            </v-col>
+            <v-col v-if="invoiceForm.include_time_entries" cols="12" sm="6">
+              <v-text-field v-model="invoiceForm.hourly_rate_default" type="number" step="0.50" min="0"
+                label="Stundensatz € (Fallback, wenn nicht an Eintrag hinterlegt)"
+                variant="outlined" density="compact" clearable />
+            </v-col>
           </v-row>
           <v-alert v-if="invoiceError" type="error" variant="tonal" density="compact" class="mt-2">{{ invoiceError }}</v-alert>
         </v-card-text>
@@ -199,7 +214,10 @@ const toInvoiceDialog = ref(false)
 const toInvoiceTarget = ref<Order | null>(null)
 const creatingInvoice = ref(false)
 const invoiceError = ref('')
-const invoiceForm = ref({ invoice_date: today, due_date: '', kind: 'final' as 'final' | 'partial' | 'advance', copy_items: true })
+const invoiceForm = ref({
+  invoice_date: today, due_date: '', kind: 'final' as 'final' | 'partial' | 'advance',
+  copy_items: true, include_time_entries: true, hourly_rate_default: '',
+})
 const invoiceKindOptions = [
   { title: 'Schlussrechnung', value: 'final' },
   { title: 'Teilrechnung', value: 'partial' },
@@ -273,7 +291,10 @@ async function addEntry() {
 }
 function openToInvoice(o: Order) {
   toInvoiceTarget.value = o
-  invoiceForm.value = { invoice_date: today, due_date: '', kind: 'final', copy_items: true }
+  invoiceForm.value = {
+    invoice_date: today, due_date: '', kind: 'final', copy_items: !!o.quote_id,
+    include_time_entries: o.hours_billable > 0, hourly_rate_default: '',
+  }
   invoiceError.value = ''
   toInvoiceDialog.value = true
 }
@@ -286,6 +307,8 @@ async function doCreateInvoice() {
       due_date: invoiceForm.value.due_date || null,
       kind: invoiceForm.value.kind,
       copy_items: invoiceForm.value.copy_items,
+      include_time_entries: invoiceForm.value.include_time_entries,
+      hourly_rate_default: invoiceForm.value.hourly_rate_default || undefined,
     })
     toInvoiceDialog.value = false
     snackbar.notify(`Rechnung ${inv.invoice_no} erstellt`)

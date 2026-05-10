@@ -60,6 +60,8 @@ class CreateInvoiceFromOrderBody(BaseModel):
     due_date: dt.date | None = None
     kind: Literal["final", "partial", "advance"] = "final"
     copy_items: bool = True
+    include_time_entries: bool = True      # Zeiteinträge als Rechnungsposition
+    hourly_rate_default: Decimal | None = None  # Fallback-Stundensatz wenn kein Eintrag-Stundensatz
 
 
 class QuoteItemRead(BaseModel):

@@ -226,17 +226,19 @@ async def create_invoice_from_order(
     db.add(invoice)
     await db.flush()
 
+    inv_items: list[InvoiceItem] = []
+    next_pos = 1
+
     # Items aus verknüpftem Angebot kopieren (wenn gewünscht)
     if body.copy_items and order.quote_id:
         all_items_result = await db.execute(
             select(QuoteItem).where(QuoteItem.quote_id == order.quote_id).order_by(QuoteItem.position)
         )
         quote_items = all_items_result.scalars().all()
-        inv_items: list[InvoiceItem] = []
         for qi in quote_items:
             ii = InvoiceItem(
                 invoice_id=invoice.id,
-                position=qi.position,
+                position=next_pos,
                 description=qi.description,
                 qty=qi.qty,
                 unit=qi.unit,
@@ -248,6 +250,44 @@ async def create_invoice_from_order(
             )
             db.add(ii)
             inv_items.append(ii)
+            next_pos += 1
+
+    # Zeiteinträge als Rechnungsposition hinzufügen (wenn gewünscht)
+    if body.include_time_entries and order.time_entries:
+        from decimal import Decimal as D
+        billable_entries = [e for e in order.time_entries if e.billable and not e.invoiced]
+        if billable_entries:
+            # Stundensatz: Eintrag-Rate > body-Default > 0
+            fallback = body.hourly_rate_default or D("0.00")
+            total_hours = sum(e.hours for e in billable_entries)
+            # Gewichteter Mittelstundensatz (oder Fallback)
+            weighted_rates = [(e.hours, e.hourly_rate or fallback) for e in billable_entries]
+            if any(r > 0 for _, r in weighted_rates):
+                avg_rate = sum(h * r for h, r in weighted_rates) / sum(h for h, _ in weighted_rates)
+            else:
+                avg_rate = fallback
+
+            line_total = (total_hours * avg_rate).quantize(D("0.01"))
+            time_item = InvoiceItem(
+                invoice_id=invoice.id,
+                position=next_pos,
+                description=f"Arbeitszeit — {order.title} ({len(billable_entries)} Buchungen)",
+                qty=total_hours,
+                unit="h",
+                unit_price=avg_rate,
+                discount_pct=D("0.00"),
+                vat_rate=D("19.00"),
+                line_total=line_total,
+            )
+            db.add(time_item)
+            inv_items.append(time_item)
+            next_pos += 1
+
+            # Zeiteinträge als verrechnet markieren
+            for e in billable_entries:
+                e.invoiced = True
+
+    if inv_items:
         await db.flush()
         invoice.subtotal, invoice.vat_total, invoice.total = calculation.calc_totals(inv_items)
 
