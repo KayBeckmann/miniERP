@@ -268,6 +268,27 @@ Jede Phase endet mit einem **lauffähigen Stand** (build grün, manueller Smoket
 - [ ] DATEV-CSV-Variante des Steuerberater-Exports (sobald StB-Format bekannt)
 - [ ] Peppol-Versand für E-Rechnungen (optional)
 
+### Mandanten-Konfiguration via .env (TODO)
+Ziel: miniERP ohne Code-Änderungen für beliebige Betriebe verwendbar.
+
+- [ ] Mandantendaten (Name, Code, Adresse, IBAN, Nummernpräfixe) vollständig aus `.env` lesen
+      statt hardcoded im Seed-Script (`app/main.py`):
+      ```
+      TENANT1_CODE=bau
+      TENANT1_NAME=Muster Bauunternehmen
+      TENANT1_ADDRESS=...
+      TENANT1_IBAN=DE89...
+      TENANT1_INVOICE_PREFIX=R
+      TENANT1_QUOTE_PREFIX=A
+      TENANT2_CODE=huf        ← leer = kein zweiter Mandant
+      TENANT2_NAME=...
+      ```
+- [ ] `app/core/config.py`: neue Settings-Felder `TENANT1_*` / `TENANT2_*`
+- [ ] `app/main.py` Seed-Funktion: liest Werte aus Settings statt Literale
+- [ ] Unterstützung für Einzelbetrieb (TENANT2_CODE leer → nur ein Mandant)
+- [ ] `.env.example` + README dokumentieren die neuen Variablen
+- [ ] Bestehende Daten bleiben erhalten (Migration-safe: nur beim ersten Start / leerem DB)
+
 ### Phase 9 – E-Mail-Integration (TODO)
 - [ ] **SMTP-Versand**: Angebote und Rechnungen direkt als PDF per E-Mail versenden
       - `POST /quotes/{id}/send-email` — Angebot an Kunde senden
