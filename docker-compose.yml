@@ -62,7 +62,6 @@ services:
     restart: unless-stopped
     networks:
       - internal
-    profiles: ["pdf"]
 
   # n8n und Ollama bei Bedarf einschalten
   n8n:
