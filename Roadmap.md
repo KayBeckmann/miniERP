@@ -296,6 +296,15 @@ Jede Phase endet mit einem **lauffähigen Stand** (build grün, manueller Smoket
 - [x] PDF: Rechnungsart-Label (Teilrechnung / Abschlagsrechnung / Rechnung) im Dokumenttitel
 - [x] Migration `0010`: `invoice_items.quote_item_id` FK + `invoices.prior_invoiced_total`
 
+### Bugfix: Stundenerfassung – Werte immer 0 ✅ abgeschlossen (2026-05-10)
+- [x] **Root cause**: FastAPI-Route `GET /orders/time-entries` war hinter `GET /orders/{order_id}`
+      registriert → Starlette matched `"time-entries"` als `order_id`-Pfadparameter (int),
+      gibt 422 zurück, der `/time-entries`-Handler wurde nie erreicht
+- [x] Fix: `/time-entries`-Route vor alle `/{order_id}`-Routen verschoben
+      (`backend/app/api/v1/endpoints/orders.py`)
+- [x] Frontend-Catch `{ entries.value = [] }` hat den Fehler still geschluckt → alle
+      Statistiken blieben bei 0.0 h
+
 ### Mandanten-Konfiguration via .env (TODO)
 Ziel: miniERP ohne Code-Änderungen für beliebige Betriebe verwendbar.
 
