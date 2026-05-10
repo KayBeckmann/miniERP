@@ -268,6 +268,20 @@ Jede Phase endet mit einem **lauffähigen Stand** (build grün, manueller Smoket
 - [ ] DATEV-CSV-Variante des Steuerberater-Exports (sobald StB-Format bekannt)
 - [ ] Peppol-Versand für E-Rechnungen (optional)
 
+### n8n entfernt – direkter Paperless-Webhook ✅ abgeschlossen (2026-05-10)
+- [x] n8n komplett aus docker-compose entfernt (war nie aktiv, nicht nötig)
+- [x] `scripts/paperless-notify.sh`: Post-Consume-Script für Paperless-ngx
+- [x] Neuer Endpoint `POST /supplier-invoices/paperless-hook/{id}`:
+      - Kein JWT nötig — nur `X-Internal-Token` + `X-Tenant-ID` Header
+      - `INTERNAL_PAPERLESS_TOKEN` in config.py + .env
+- [x] `PAPERLESS_DEFAULT_TENANT_ID` steuert Mandantenzuordnung
+- [x] Paperless ruft miniERP vollautomatisch nach Dokumentenverarbeitung auf
+
+### Profil & Passwort-Änderung ✅ abgeschlossen (2026-05-10)
+- [x] `POST /auth/change-password`: aktuelles PW prüfen, neues setzen (min. 8 Zeichen)
+- [x] Profil-Menü im App-Header (Account-Icon): E-Mail, Passwort ändern, Abmelden
+- [x] auth-Store: user-Objekt (email) nach Login persistent gespeichert
+
 ### Mandanten-Konfiguration via .env (TODO)
 Ziel: miniERP ohne Code-Änderungen für beliebige Betriebe verwendbar.
 
