@@ -10,7 +10,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-minierp}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./data/postgres:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-minierp}"]
       interval: 10s
@@ -62,7 +62,7 @@ services:
     image: redis:7-alpine
     restart: unless-stopped
     volumes:
-      - paperless_redis_data:/data
+      - ./data/paperless-redis:/data
     networks:
       - internal
 
@@ -74,7 +74,7 @@ services:
       POSTGRES_USER: paperless
       POSTGRES_PASSWORD: ${PAPERLESS_DBPASS:?PAPERLESS_DBPASS required}
     volumes:
-      - paperless_db_data:/var/lib/postgresql/data
+      - ./data/paperless-db:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U paperless"]
       interval: 10s
@@ -114,10 +114,10 @@ services:
       MINIERP_INTERNAL_TOKEN: ${INTERNAL_PAPERLESS_TOKEN:-}
       MINIERP_TENANT_ID: ${PAPERLESS_DEFAULT_TENANT_ID:-1}
     volumes:
-      - paperless_data:/usr/src/paperless/data
-      - paperless_media:/usr/src/paperless/media
-      - paperless_export:/usr/src/paperless/export
-      - paperless_consume:/usr/src/paperless/consume
+      - ./data/paperless/data:/usr/src/paperless/data
+      - ./data/paperless/media:/usr/src/paperless/media
+      - ./data/paperless/export:/usr/src/paperless/export
+      - ./data/paperless/consume:/usr/src/paperless/consume
       - ./scripts:/scripts:ro   # Notify-Script (schreibgeschützt)
     networks:
       - internal
@@ -142,7 +142,7 @@ services:
     environment:
       OLLAMA_KEEP_ALIVE: "24h"
     volumes:
-      - ollama_data:/root/.ollama
+      - ./data/ollama:/root/.ollama
     networks:
       - internal
 
@@ -163,16 +163,6 @@ services:
     networks:
       - internal
     profiles: ["dev"]
-
-volumes:
-  postgres_data:
-  paperless_db_data:
-  paperless_redis_data:
-  paperless_data:
-  paperless_media:
-  paperless_export:
-  paperless_consume:
-  ollama_data:
 
 networks:
   internal:
