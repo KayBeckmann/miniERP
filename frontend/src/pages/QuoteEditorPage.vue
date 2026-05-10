@@ -187,9 +187,11 @@ import {
 } from '@/api/quotes'
 import { customersApi, type Customer, materialsApi, type Material } from '@/api/stammdaten'
 import { api } from '@/api/client'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const router = useRouter()
+const auth = useAuthStore()
 
 const quoteId = computed(() => route.params.id ? Number(route.params.id) : null)
 const isNew = computed(() => !quoteId.value)
@@ -435,7 +437,20 @@ function toItemIn(item: LocalItem, idx: number): QuoteItemIn {
 async function downloadPdf() {
   if (!quoteId.value) return
   pdfLoading.value = true
-  try { window.open(quotesApi.pdfUrl(quoteId.value), '_blank') }
+  try {
+    const res = await fetch(`/api/v1/quotes/${quoteId.value}/pdf`, {
+      headers: {
+        Authorization: `Bearer ${auth.accessToken}`,
+        ...(auth.currentTenant ? { 'X-Tenant-ID': String(auth.currentTenant.id) } : {}),
+      },
+    })
+    if (!res.ok) throw new Error(`${res.status}`)
+    const blob = await res.blob()
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `${quote.value?.quote_no ?? 'angebot'}.pdf`
+    a.click(); URL.revokeObjectURL(a.href)
+  } catch (e) { error.value = 'PDF-Download fehlgeschlagen' }
   finally { pdfLoading.value = false }
 }
 

@@ -7,24 +7,26 @@
   body { font-family: Arial, sans-serif; font-size: 11pt; color: #222; }
   .page { padding: 20mm 20mm 20mm 25mm; }
   .header { display: flex; justify-content: space-between; margin-bottom: 10mm; }
-  .company-name { font-size: 18pt; font-weight: bold; color: #1976D2; }
+  .company-name { font-size: 18pt; font-weight: bold; color: {{ tenant.pdf_color | default('#1976D2') }}; }
   .company-info { font-size: 9pt; color: #555; margin-top: 2mm; line-height: 1.5; }
   .doc-title { font-size: 16pt; font-weight: bold; margin: 8mm 0 2mm; }
   .meta-row { display: flex; gap: 20mm; margin-bottom: 6mm; }
   .meta-block { font-size: 10pt; }
   .meta-block .label { color: #777; font-size: 9pt; }
-  .customer-box { border-left: 3px solid #1976D2; padding-left: 4mm; margin-bottom: 8mm; font-size: 10pt; line-height: 1.6; }
+  .customer-box { border-left: 3px solid {{ tenant.pdf_color | default('#1976D2') }}; padding-left: 4mm; margin-bottom: 8mm; font-size: 10pt; line-height: 1.6; }
   table { width: 100%; border-collapse: collapse; margin-bottom: 6mm; font-size: 10pt; }
-  th { background: #1976D2; color: white; padding: 2mm 3mm; text-align: left; font-size: 9pt; }
+  th { background: {{ tenant.pdf_color | default('#1976D2') }}; color: white; padding: 2mm 3mm; text-align: left; font-size: 9pt; }
   td { padding: 1.5mm 3mm; border-bottom: 1px solid #e0e0e0; vertical-align: top; }
   tr:nth-child(even) td { background: #f9f9f9; }
   .num { text-align: right; }
-  .totals { margin-left: auto; width: 80mm; border-top: 2px solid #1976D2; }
+  .totals { margin-left: auto; width: 80mm; border-top: 2px solid {{ tenant.pdf_color | default('#1976D2') }}; }
   .totals td { padding: 1mm 3mm; border-bottom: none; }
   .totals .grand { font-weight: bold; font-size: 12pt; border-top: 1px solid #ccc; }
   .notes { margin-top: 6mm; font-size: 10pt; line-height: 1.5; }
   .footer { margin-top: 10mm; font-size: 8pt; color: #888; border-top: 1px solid #eee; padding-top: 3mm; }
-  .status-badge { display: inline-block; padding: 1mm 3mm; border-radius: 3px; font-size: 9pt; background: #e3f2fd; color: #1565c0; }
+  .status-badge { display: inline-block; padding: 1mm 3mm; border-radius: 3px; font-size: 9pt; background: {{ tenant.pdf_accent_secondary | default('#E3F2FD') }}; color: #1565c0; }
+  .group-header { background: {{ tenant.pdf_accent_secondary | default('#E3F2FD') }}; font-weight: bold; font-size: 10pt; padding: 2mm 3mm; margin-top: 4mm; margin-bottom: 0; border-left: 3px solid {{ tenant.pdf_color | default('#1976D2') }}; }
+  .group-subtotal { text-align: right; font-size: 9pt; color: #555; padding: 1.5mm 3mm; background: #f5f5f5; font-style: italic; }
 </style>
 </head>
 <body>
@@ -57,7 +59,8 @@
     {% if customer.phone %}{{ customer.phone }}{% endif %}
   </div>
 
-  <!-- Items table -->
+  <!-- Ungrouped items (shown first if any) -->
+  {% if quote.items %}
   <table>
     <thead>
       <tr>
@@ -86,6 +89,45 @@
       {% endfor %}
     </tbody>
   </table>
+  {% endif %}
+
+  <!-- Grouped items -->
+  {% for group in quote.groups %}
+  <div class="group-header">{{ group.title }}</div>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:5%">Pos.</th>
+        <th style="width:40%">Beschreibung</th>
+        <th style="width:8%" class="num">Menge</th>
+        <th style="width:8%">Einh.</th>
+        <th style="width:10%" class="num">EP (€)</th>
+        <th style="width:8%" class="num">Rab.%</th>
+        <th style="width:8%" class="num">MwSt.%</th>
+        <th style="width:13%" class="num">Gesamt (€)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in group.items %}
+      <tr>
+        <td>{{ item.position }}</td>
+        <td>{{ item.description }}</td>
+        <td class="num">{{ "%.3f"|format(item.qty|float) }}</td>
+        <td>{{ item.unit }}</td>
+        <td class="num">{{ "%.2f"|format(item.unit_price|float) }}</td>
+        <td class="num">{% if item.discount_pct %}{{ "%.1f"|format(item.discount_pct|float) }}{% else %}—{% endif %}</td>
+        <td class="num">{{ "%.0f"|format(item.vat_rate|float) }}</td>
+        <td class="num"><strong>{{ "%.2f"|format(item.line_total|float) }}</strong></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if group.group_total is not none %}
+  <div class="group-subtotal">
+    Gruppe „{{ group.title }}" — Netto: {{ "%.2f"|format(group.subtotal|float) }} € · MwSt.: {{ "%.2f"|format(group.vat_total|float) }} € · <strong>Gesamt: {{ "%.2f"|format(group.group_total|float) }} €</strong>
+  </div>
+  {% endif %}
+  {% endfor %}
 
   <!-- Totals -->
   <table class="totals">
@@ -105,8 +147,9 @@
   <!-- Footer -->
   <div class="footer">
     {{ tenant.name }}
-    {% if tenant.iban %} · IBAN: {{ tenant.iban }}{% endif %}
+    {% if tenant.pdf_show_bank_details and tenant.iban %} · IBAN: {{ tenant.iban }}{% endif %}
     · Angebotsnr.: {{ quote.quote_no }} · Version {{ quote.version }}
+    {% if tenant.pdf_footer_text %}<br>{{ tenant.pdf_footer_text | replace('\n', '<br>') | safe }}{% endif %}
   </div>
 </div>
 </body>

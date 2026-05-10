@@ -33,6 +33,9 @@
 
       <v-list-subheader>Auswertung</v-list-subheader>
       <v-list-item prepend-icon="mdi-chart-bar" title="Auswertungen" to="/reports" color="primary" />
+
+      <v-list-subheader>Einstellungen</v-list-subheader>
+      <v-list-item prepend-icon="mdi-file-pdf-box" title="PDF-Vorlagen" to="/pdf-settings" color="primary" />
     </v-list>
   </v-navigation-drawer>
 </template>

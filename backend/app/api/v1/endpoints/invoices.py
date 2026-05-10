@@ -176,7 +176,7 @@ async def add_payment(
     return payment
 
 
-@router.post("/{invoice_id}/pdf")
+@router.get("/{invoice_id}/pdf")
 async def generate_pdf(
     invoice_id: int,
     tenant_id: int = Depends(get_tenant_id),

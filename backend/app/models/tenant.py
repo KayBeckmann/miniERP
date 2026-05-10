@@ -1,4 +1,4 @@
-from sqlalchemy import String, Text
+from sqlalchemy import Boolean, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -16,5 +16,11 @@ class Tenant(Base):
     invoice_number_prefix: Mapped[str | None] = mapped_column(String(10), nullable=True)
     quote_number_prefix: Mapped[str | None] = mapped_column(String(10), nullable=True)
     pdf_template: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
+    # PDF settings
+    pdf_color: Mapped[str] = mapped_column(String(10), nullable=False, default="#1976D2", server_default="#1976D2")
+    pdf_footer_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    pdf_show_bank_details: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+    pdf_accent_secondary: Mapped[str] = mapped_column(String(10), nullable=False, default="#E3F2FD", server_default="#E3F2FD")
 
     users: Mapped[list["User"]] = relationship(back_populates="default_tenant")  # type: ignore[name-defined]

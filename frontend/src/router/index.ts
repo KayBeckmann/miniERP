@@ -28,6 +28,7 @@ const router = createRouter({
         { path: 'time', name: 'time', component: () => import('@/pages/TimeEntryPage.vue') },
         { path: 'supplier-invoices', name: 'supplier-invoices', component: () => import('@/pages/SupplierInvoicesPage.vue') },
         { path: 'reports', name: 'reports', component: () => import('@/pages/ReportsPage.vue') },
+        { path: 'pdf-settings', name: 'pdf-settings', component: () => import('@/pages/PdfSettingsPage.vue') },
       ],
     },
     { path: '/:pathMatch(.*)*', redirect: '/' },

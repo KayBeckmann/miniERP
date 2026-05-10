@@ -7,19 +7,19 @@
   body { font-family: Arial, sans-serif; font-size: 11pt; color: #222; }
   .page { padding: 20mm 20mm 20mm 25mm; }
   .header { display: flex; justify-content: space-between; margin-bottom: 10mm; }
-  .company-name { font-size: 18pt; font-weight: bold; color: #1976D2; }
+  .company-name { font-size: 18pt; font-weight: bold; color: {{ tenant.pdf_color | default('#1976D2') }}; }
   .company-info { font-size: 9pt; color: #555; margin-top: 2mm; line-height: 1.5; }
   .doc-title { font-size: 16pt; font-weight: bold; margin: 8mm 0 2mm; }
-  .customer-box { border-left: 3px solid #1976D2; padding-left: 4mm; margin-bottom: 8mm; font-size: 10pt; line-height: 1.6; }
+  .customer-box { border-left: 3px solid {{ tenant.pdf_color | default('#1976D2') }}; padding-left: 4mm; margin-bottom: 8mm; font-size: 10pt; line-height: 1.6; }
   table { width: 100%; border-collapse: collapse; margin-bottom: 6mm; font-size: 10pt; }
-  th { background: #1976D2; color: white; padding: 2mm 3mm; text-align: left; font-size: 9pt; }
+  th { background: {{ tenant.pdf_color | default('#1976D2') }}; color: white; padding: 2mm 3mm; text-align: left; font-size: 9pt; }
   td { padding: 1.5mm 3mm; border-bottom: 1px solid #e0e0e0; vertical-align: top; }
   tr:nth-child(even) td { background: #f9f9f9; }
   .num { text-align: right; }
-  .totals { margin-left: auto; width: 80mm; border-top: 2px solid #1976D2; }
+  .totals { margin-left: auto; width: 80mm; border-top: 2px solid {{ tenant.pdf_color | default('#1976D2') }}; }
   .totals td { padding: 1mm 3mm; border-bottom: none; }
   .totals .grand { font-weight: bold; font-size: 12pt; border-top: 1px solid #ccc; }
-  .payment-info { background: #e8f5e9; padding: 3mm; border-radius: 3px; margin-top: 6mm; font-size: 10pt; }
+  .payment-info { background: {{ tenant.pdf_accent_secondary | default('#E3F2FD') }}; padding: 3mm; border-radius: 3px; margin-top: 6mm; font-size: 10pt; }
   .notes { margin-top: 6mm; font-size: 10pt; line-height: 1.5; }
   .footer { margin-top: 10mm; font-size: 8pt; color: #888; border-top: 1px solid #eee; padding-top: 3mm; }
 </style>
@@ -87,7 +87,7 @@
     {% endif %}
   </table>
 
-  {% if tenant.iban %}
+  {% if tenant.pdf_show_bank_details and tenant.iban %}
   <div class="payment-info">
     <strong>Bitte überweisen Sie den Betrag bis {{ invoice.due_date.strftime('%d.%m.%Y') if invoice.due_date else '14 Tage nach Rechnungsdatum' }} auf:</strong><br>
     IBAN: {{ tenant.iban }}{% if tenant.name %} · Empfänger: {{ tenant.name }}{% endif %}
@@ -100,7 +100,8 @@
   {% endif %}
 
   <div class="footer">
-    {{ tenant.name }}{% if tenant.iban %} · IBAN: {{ tenant.iban }}{% endif %} · {{ invoice.invoice_no }}
+    {{ tenant.name }}{% if tenant.pdf_show_bank_details and tenant.iban %} · IBAN: {{ tenant.iban }}{% endif %} · {{ invoice.invoice_no }}
+    {% if tenant.pdf_footer_text %}<br>{{ tenant.pdf_footer_text | replace('\n', '<br>') | safe }}{% endif %}
   </div>
 </div>
 </body>

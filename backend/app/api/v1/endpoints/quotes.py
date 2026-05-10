@@ -248,7 +248,7 @@ async def convert_to_order(
     return OrderRead.model_validate(order)
 
 
-@router.post("/{quote_id}/pdf")
+@router.get("/{quote_id}/pdf")
 async def generate_pdf(
     quote_id: int,
     tenant_id: int = Depends(get_tenant_id),
