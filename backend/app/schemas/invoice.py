@@ -43,6 +43,7 @@ class InvoiceItemRead(BaseModel):
     vat_rate: Decimal
     line_total: Decimal
     material_id: int | None
+    quote_item_id: int | None = None
 
     model_config = {"from_attributes": True}
 
@@ -83,6 +84,7 @@ class InvoiceRead(BaseModel):
     vat_total: Decimal
     total: Decimal
     paid_amount: Decimal
+    prior_invoiced_total: Decimal = Decimal("0.00")
     paid_at: datetime | None
     notes: str | None
     internal_notes: str | None

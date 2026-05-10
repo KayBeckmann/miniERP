@@ -282,6 +282,17 @@ Jede Phase endet mit einem **lauffähigen Stand** (build grün, manueller Smoket
 - [x] Profil-Menü im App-Header (Account-Icon): E-Mail, Passwort ändern, Abmelden
 - [x] auth-Store: user-Objekt (email) nach Login persistent gespeichert
 
+### Phase 10 – Rechnungsworkflow: Teil- & Schlussrechnung ✅ abgeschlossen (2026-05-10)
+- [x] **Stunden im Angebot**: „Stunden"-Schnell-Button im Angebots-Editor (pre-filled unit=h, 19% MwSt.)
+- [x] **Positionsselektion**: Dialog Auftrag→Rechnung zeigt Angebots-Positionen als Checkliste
+      bei Teil-/Abschlagsrechnungen — bereits abgerechnete Positionen sind deaktiviert
+- [x] **Doppelte Abrechnung verhindern**: `InvoiceItem.quote_item_id` FK trackt Herkunft;
+      neue Teil-/Abschlagsrechnungen schließen bereits verrechnete Positionen automatisch aus
+- [x] **Vorleistungen in Schlussrechnung**: `Invoice.prior_invoiced_total` summiert alle
+      nicht-stornierten Teil-/Abschlagsrechnungen des Auftrags; PDF weist den Abzug aus
+- [x] PDF: Rechnungsart-Label (Teilrechnung / Abschlagsrechnung / Rechnung) im Dokumenttitel
+- [x] Migration `0010`: `invoice_items.quote_item_id` FK + `invoices.prior_invoiced_total`
+
 ### Mandanten-Konfiguration via .env (TODO)
 Ziel: miniERP ohne Code-Änderungen für beliebige Betriebe verwendbar.
 

@@ -38,7 +38,13 @@
     </div>
   </div>
 
-  <div class="doc-title">Rechnung {{ invoice.invoice_no }}</div>
+  <div class="doc-title">
+    {% if invoice.kind == 'partial' %}Teilrechnung
+    {% elif invoice.kind == 'advance' %}Abschlagsrechnung
+    {% else %}Rechnung
+    {% endif %}
+    {{ invoice.invoice_no }}
+  </div>
 
   <div class="customer-box">
     <strong>{{ customer.name }}</strong><br>
@@ -81,6 +87,10 @@
     <tr><td>Nettobetrag</td><td class="num">{{ "%.2f"|format(invoice.subtotal|float) }} €</td></tr>
     <tr><td>Mehrwertsteuer</td><td class="num">{{ "%.2f"|format(invoice.vat_total|float) }} €</td></tr>
     <tr class="grand"><td><strong>Gesamtbetrag</strong></td><td class="num"><strong>{{ "%.2f"|format(invoice.total|float) }} €</strong></td></tr>
+    {% if invoice.prior_invoiced_total and invoice.prior_invoiced_total|float > 0 %}
+    <tr><td style="color:#555;">Abzgl. bereits abgerechnete Teilbeträge</td><td class="num" style="color:#555;">−{{ "%.2f"|format(invoice.prior_invoiced_total|float) }} €</td></tr>
+    <tr class="grand"><td><strong>Verbleibender Rechnungsbetrag</strong></td><td class="num"><strong>{{ "%.2f"|format((invoice.total|float - invoice.prior_invoiced_total|float)) }} €</strong></td></tr>
+    {% endif %}
     {% if invoice.paid_amount > 0 %}
     <tr><td style="color:#388e3c;">Bereits gezahlt</td><td class="num" style="color:#388e3c;">{{ "%.2f"|format(invoice.paid_amount|float) }} €</td></tr>
     <tr><td><strong>Offener Betrag</strong></td><td class="num"><strong>{{ "%.2f"|format((invoice.total|float - invoice.paid_amount|float)) }} €</strong></td></tr>

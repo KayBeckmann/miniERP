@@ -21,6 +21,17 @@ export interface Order {
   hours_billable: number
 }
 
+export interface BillableItem {
+  id: number
+  description: string
+  qty: string
+  unit: string
+  unit_price: string
+  line_total: string
+  already_invoiced: boolean
+  invoice_no: string | null
+}
+
 export interface TimeEntry {
   id: number
   order_id: number
@@ -62,6 +73,8 @@ export const ordersApi = {
     api.patch<TimeEntry>(`/orders/${orderId}/time/${entryId}`, data),
   deleteTime: (orderId: number, entryId: number) =>
     api.delete<void>(`/orders/${orderId}/time/${entryId}`),
-  toInvoice: (orderId: number, data: { invoice_date: string; due_date?: string | null; kind: 'final' | 'partial' | 'advance'; copy_items?: boolean; include_time_entries?: boolean; hourly_rate_default?: string }) =>
+  billableItems: (orderId: number) =>
+    api.get<BillableItem[]>(`/orders/${orderId}/billable-items`),
+  toInvoice: (orderId: number, data: { invoice_date: string; due_date?: string | null; kind: 'final' | 'partial' | 'advance'; copy_items?: boolean; include_time_entries?: boolean; hourly_rate_default?: string; item_ids?: number[] | null }) =>
     api.post<{ id: number; invoice_no: string }>(`/orders/${orderId}/to-invoice`, data),
 }

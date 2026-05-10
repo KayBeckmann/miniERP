@@ -15,7 +15,7 @@ from app.schemas.order import (
     OrderCreate, OrderListResponse, OrderRead, OrderUpdate,
     TimeEntryCreate, TimeEntryRead, TimeEntryUpdate,
 )
-from app.schemas.quote import CreateInvoiceFromOrderBody
+from app.schemas.quote import BillableItemRead, CreateInvoiceFromOrderBody
 from app.services import calculation
 from app.services.number_sequence import next_number
 
@@ -202,6 +202,46 @@ async def delete_time_entry(
     await db.commit()
 
 
+@router.get("/{order_id}/billable-items", response_model=list[BillableItemRead])
+async def get_billable_items(
+    order_id: int,
+    tenant_id: int = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+) -> list[BillableItemRead]:
+    """Gibt alle Angebots-Positionen des Auftrags zurück, mit Hinweis ob bereits abgerechnet."""
+    order = await _get_or_404(db, order_id, tenant_id)
+    if not order.quote_id:
+        return []
+    quote_items = (await db.execute(
+        select(QuoteItem).where(QuoteItem.quote_id == order.quote_id).order_by(QuoteItem.position)
+    )).scalars().all()
+
+    result = []
+    for qi in quote_items:
+        # Prüfen ob diese QuoteItem-ID bereits in einer aktiven Rechnung steckt
+        row = (await db.execute(
+            select(Invoice.invoice_no)
+            .join(InvoiceItem, InvoiceItem.invoice_id == Invoice.id)
+            .where(
+                InvoiceItem.quote_item_id == qi.id,
+                Invoice.status != "cancelled",
+            )
+            .limit(1)
+        )).first()
+        result.append(BillableItemRead(
+            id=qi.id,
+            description=qi.description,
+            qty=qi.qty,
+            unit=qi.unit,
+            unit_price=qi.unit_price,
+            line_total=qi.line_total,
+            already_invoiced=row is not None,
+            invoice_no=row[0] if row else None,
+        ))
+    return result
+
+
 @router.post("/{order_id}/to-invoice", response_model=InvoiceRead, status_code=status.HTTP_201_CREATED)
 async def create_invoice_from_order(
     order_id: int,
@@ -210,8 +250,24 @@ async def create_invoice_from_order(
     db: AsyncSession = Depends(get_db),
     _user=Depends(get_current_user),
 ) -> InvoiceRead:
+    from decimal import Decimal as D
+    from sqlalchemy.orm import selectinload as sl
+
     order = await _get_or_404(db, order_id, tenant_id)
     inv_no = await next_number(db, tenant_id, "invoice")
+
+    # Bereits abgerechnete Beträge aus früheren Teil-/Abschlagsrechnungen
+    prior_invoiced_total = D("0.00")
+    if body.kind == "final" and order.id:
+        prior_rows = (await db.execute(
+            select(Invoice.total)
+            .where(
+                Invoice.order_id == order.id,
+                Invoice.kind.in_(["partial", "advance"]),
+                Invoice.status != "cancelled",
+            )
+        )).all()
+        prior_invoiced_total = sum((r[0] for r in prior_rows), D("0.00"))
 
     invoice = Invoice(
         tenant_id=tenant_id,
@@ -222,6 +278,7 @@ async def create_invoice_from_order(
         invoice_date=body.invoice_date,
         due_date=body.due_date,
         kind=body.kind,
+        prior_invoiced_total=prior_invoiced_total,
     )
     db.add(invoice)
     await db.flush()
@@ -229,13 +286,26 @@ async def create_invoice_from_order(
     inv_items: list[InvoiceItem] = []
     next_pos = 1
 
-    # Items aus verknüpftem Angebot kopieren (wenn gewünscht)
     if body.copy_items and order.quote_id:
         all_items_result = await db.execute(
             select(QuoteItem).where(QuoteItem.quote_id == order.quote_id).order_by(QuoteItem.position)
         )
         quote_items = all_items_result.scalars().all()
         for qi in quote_items:
+            # Bei Teilrechnungen: nur ausgewählte IDs, bei Schlussrechnungen: noch nicht abgerechnete
+            if body.item_ids is not None:
+                if qi.id not in body.item_ids:
+                    continue
+            elif body.kind in ("partial", "advance"):
+                # Ohne explizite Auswahl: bereits abgerechnete überspringen
+                already = (await db.execute(
+                    select(InvoiceItem.id)
+                    .join(Invoice, InvoiceItem.invoice_id == Invoice.id)
+                    .where(InvoiceItem.quote_item_id == qi.id, Invoice.status != "cancelled")
+                    .limit(1)
+                )).first()
+                if already:
+                    continue
             ii = InvoiceItem(
                 invoice_id=invoice.id,
                 position=next_pos,
@@ -247,26 +317,22 @@ async def create_invoice_from_order(
                 vat_rate=qi.vat_rate,
                 line_total=qi.line_total,
                 material_id=qi.material_id,
+                quote_item_id=qi.id,
             )
             db.add(ii)
             inv_items.append(ii)
             next_pos += 1
 
-    # Zeiteinträge als Rechnungsposition hinzufügen (wenn gewünscht)
     if body.include_time_entries and order.time_entries:
-        from decimal import Decimal as D
         billable_entries = [e for e in order.time_entries if e.billable and not e.invoiced]
         if billable_entries:
-            # Stundensatz: Eintrag-Rate > body-Default > 0
             fallback = body.hourly_rate_default or D("0.00")
             total_hours = sum(e.hours for e in billable_entries)
-            # Gewichteter Mittelstundensatz (oder Fallback)
             weighted_rates = [(e.hours, e.hourly_rate or fallback) for e in billable_entries]
             if any(r > 0 for _, r in weighted_rates):
                 avg_rate = sum(h * r for h, r in weighted_rates) / sum(h for h, _ in weighted_rates)
             else:
                 avg_rate = fallback
-
             line_total = (total_hours * avg_rate).quantize(D("0.01"))
             time_item = InvoiceItem(
                 invoice_id=invoice.id,
@@ -281,9 +347,6 @@ async def create_invoice_from_order(
             )
             db.add(time_item)
             inv_items.append(time_item)
-            next_pos += 1
-
-            # Zeiteinträge als verrechnet markieren
             for e in billable_entries:
                 e.invoiced = True
 
@@ -292,8 +355,6 @@ async def create_invoice_from_order(
         invoice.subtotal, invoice.vat_total, invoice.total = calculation.calc_totals(inv_items)
 
     await db.commit()
-    # Reload mit relationships
-    from sqlalchemy.orm import selectinload as sl
     result = await db.execute(
         select(Invoice)
         .options(sl(Invoice.items), sl(Invoice.payments))

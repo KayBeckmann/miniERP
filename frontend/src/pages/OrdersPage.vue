@@ -159,6 +159,39 @@
                 label="Stundensatz € (Fallback, wenn nicht an Eintrag hinterlegt)"
                 variant="outlined" density="compact" clearable />
             </v-col>
+
+            <!-- Positionsselektion für Teil-/Abschlagsrechnungen -->
+            <v-col v-if="invoiceForm.copy_items && billableItems.length > 0 && invoiceForm.kind !== 'final'" cols="12">
+              <div class="text-subtitle-2 mb-1">Positionen auswählen</div>
+              <v-card variant="outlined" class="pa-1" style="max-height:220px;overflow-y:auto;">
+                <v-list density="compact" select-strategy="multiple" v-model:selected="selectedItemIds">
+                  <v-list-item
+                    v-for="item in billableItems"
+                    :key="item.id"
+                    :value="item.id"
+                    :disabled="item.already_invoiced"
+                  >
+                    <template #prepend="{ isSelected }">
+                      <v-checkbox-btn :model-value="isSelected" :disabled="item.already_invoiced" />
+                    </template>
+                    <v-list-item-title :class="item.already_invoiced ? 'text-medium-emphasis text-decoration-line-through' : ''">
+                      {{ item.description }}
+                    </v-list-item-title>
+                    <v-list-item-subtitle>
+                      {{ parseFloat(item.qty).toFixed(2) }} {{ item.unit }} × {{ parseFloat(item.unit_price).toFixed(2) }} € = {{ parseFloat(item.line_total).toFixed(2) }} €
+                      <span v-if="item.already_invoiced" class="ml-1 text-warning">(bereits in {{ item.invoice_no }})</span>
+                    </v-list-item-subtitle>
+                  </v-list-item>
+                </v-list>
+              </v-card>
+            </v-col>
+
+            <!-- Hinweis bei Schlussrechnung mit Vorleistungen -->
+            <v-col v-if="invoiceForm.kind === 'final' && billableItems.some(i => i.already_invoiced)" cols="12">
+              <v-alert type="info" variant="tonal" density="compact">
+                Bereits abgerechnete Positionen werden automatisch berücksichtigt. Der Betrag wird in der Schlussrechnung abgezogen.
+              </v-alert>
+            </v-col>
           </v-row>
           <v-alert v-if="invoiceError" type="error" variant="tonal" density="compact" class="mt-2">{{ invoiceError }}</v-alert>
         </v-card-text>
@@ -177,7 +210,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ordersApi, type Order, type TimeEntry, STATUS_LABELS, STATUS_COLORS } from '@/api/orders'
+import { ordersApi, type Order, type TimeEntry, type BillableItem, STATUS_LABELS, STATUS_COLORS } from '@/api/orders'
 import { customersApi, type Customer } from '@/api/stammdaten'
 import { useSnackbarStore } from '@/stores/snackbar'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
@@ -218,6 +251,8 @@ const invoiceForm = ref({
   invoice_date: today, due_date: '', kind: 'final' as 'final' | 'partial' | 'advance',
   copy_items: true, include_time_entries: true, hourly_rate_default: '',
 })
+const billableItems = ref<BillableItem[]>([])
+const selectedItemIds = ref<number[]>([])
 const invoiceKindOptions = [
   { title: 'Schlussrechnung', value: 'final' },
   { title: 'Teilrechnung', value: 'partial' },
@@ -289,19 +324,28 @@ async function addEntry() {
     load()
   } finally { addingEntry.value = false }
 }
-function openToInvoice(o: Order) {
+async function openToInvoice(o: Order) {
   toInvoiceTarget.value = o
   invoiceForm.value = {
     invoice_date: today, due_date: '', kind: 'final', copy_items: !!o.quote_id,
     include_time_entries: o.hours_billable > 0, hourly_rate_default: '',
   }
   invoiceError.value = ''
+  billableItems.value = []
+  selectedItemIds.value = []
+  if (o.quote_id) {
+    try {
+      billableItems.value = await ordersApi.billableItems(o.id)
+      selectedItemIds.value = billableItems.value.filter(i => !i.already_invoiced).map(i => i.id)
+    } catch { /* kein Angebot oder Fehler → ignorieren */ }
+  }
   toInvoiceDialog.value = true
 }
 async function doCreateInvoice() {
   if (!toInvoiceTarget.value) return
   creatingInvoice.value = true; invoiceError.value = ''
   try {
+    const isPartial = invoiceForm.value.kind !== 'final'
     const inv = await ordersApi.toInvoice(toInvoiceTarget.value.id, {
       invoice_date: invoiceForm.value.invoice_date,
       due_date: invoiceForm.value.due_date || null,
@@ -309,6 +353,7 @@ async function doCreateInvoice() {
       copy_items: invoiceForm.value.copy_items,
       include_time_entries: invoiceForm.value.include_time_entries,
       hourly_rate_default: invoiceForm.value.hourly_rate_default || undefined,
+      item_ids: isPartial && billableItems.value.length > 0 ? selectedItemIds.value : null,
     })
     toInvoiceDialog.value = false
     snackbar.notify(`Rechnung ${inv.invoice_no} erstellt`)

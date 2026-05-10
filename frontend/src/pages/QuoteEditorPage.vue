@@ -81,6 +81,8 @@
             <v-spacer />
             <v-btn size="small" variant="tonal" color="primary" prepend-icon="mdi-plus"
               @click="addItemToGroup(-1)">Position</v-btn>
+            <v-btn size="small" variant="tonal" color="indigo" prepend-icon="mdi-clock-outline"
+              class="ml-1" @click="addHoursToGroup(-1)">Stunden</v-btn>
             <v-btn size="small" variant="tonal" color="secondary" prepend-icon="mdi-package-variant"
               class="ml-1" @click="openMaterialPicker(-1)">Aus Stamm</v-btn>
           </v-card-title>
@@ -101,6 +103,8 @@
             <v-spacer />
             <v-btn size="small" variant="tonal" color="primary" prepend-icon="mdi-plus"
               @click.stop="addItemToGroup(gi)">Position</v-btn>
+            <v-btn size="small" variant="tonal" color="indigo" prepend-icon="mdi-clock-outline"
+              class="ml-1" @click.stop="addHoursToGroup(gi)">Stunden</v-btn>
             <v-btn size="small" variant="tonal" color="secondary" prepend-icon="mdi-package-variant"
               class="ml-1" @click.stop="openMaterialPicker(gi)">Aus Stamm</v-btn>
             <v-btn size="small" icon variant="text" color="error" class="ml-1"
@@ -274,9 +278,16 @@ function removeGroup(gi: number) { form.value.groups.splice(gi, 1) }
 function emptyItem(): LocalItem {
   return { description: '', qty: '1', unit: 'Stk', unit_price: '0.00', discount_pct: '0.00', vat_rate: '19.00', material_id: null }
 }
+function emptyHoursItem(): LocalItem {
+  return { description: 'Arbeitszeit', qty: '1.000', unit: 'h', unit_price: '0.00', discount_pct: '0.00', vat_rate: '19.00', material_id: null }
+}
 function addItemToGroup(gi: number) {
   if (gi === -1) form.value.items.push(emptyItem())
   else form.value.groups[gi]?.items.push(emptyItem())
+}
+function addHoursToGroup(gi: number) {
+  if (gi === -1) form.value.items.push(emptyHoursItem())
+  else form.value.groups[gi]?.items.push(emptyHoursItem())
 }
 function removeItemFromGroup(gi: number, idx: number) {
   if (gi === -1) form.value.items.splice(idx, 1)
