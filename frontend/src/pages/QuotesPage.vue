@@ -32,7 +32,7 @@
             <td class="text-right" @click.stop>
               <v-btn icon size="small" variant="text" :to="{ name: 'quote-edit', params: { id: q.id } }"><v-icon>mdi-pencil</v-icon></v-btn>
               <v-btn icon size="small" variant="text" title="PDF herunterladen" @click="downloadPdf(q)"><v-icon>mdi-file-pdf-box</v-icon></v-btn>
-              <v-btn v-if="q.status === 'accepted'" icon size="small" variant="text" color="success" title="In Auftrag wandeln" @click="openToOrder(q)"><v-icon>mdi-briefcase-arrow-right</v-icon></v-btn>
+              <v-btn v-if="q.status === 'accepted'" icon size="small" variant="text" color="success" title="In Auftrag wandeln" @click="openToOrder(q)"><v-icon>mdi-briefcase-check</v-icon></v-btn>
               <v-btn icon size="small" variant="text" title="Kopieren" @click="doDuplicate(q)"><v-icon>mdi-content-copy</v-icon></v-btn>
               <v-btn v-if="q.status === 'draft'" icon size="small" variant="text" color="error" @click="askDelete(q)"><v-icon>mdi-delete</v-icon></v-btn>
             </td>
