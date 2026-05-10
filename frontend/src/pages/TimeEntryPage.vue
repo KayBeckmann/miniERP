@@ -48,7 +48,11 @@
             </template>
           </v-autocomplete>
         </v-col>
-        <v-col cols="12" sm="2">
+        <v-col v-if="orderGroups.length" cols="12" sm="2">
+          <v-autocomplete v-model="form.quote_group_id" :items="orderGroups" item-title="title" item-value="id"
+            label="Gruppe" variant="outlined" density="compact" clearable />
+        </v-col>
+        <v-col cols="12" :sm="orderGroups.length ? 2 : 2">
           <v-text-field v-model="form.hours" type="number" step="0.25" min="0.25" label="Stunden *" variant="outlined" density="compact" />
         </v-col>
         <v-col cols="12" sm="3">
@@ -90,7 +94,7 @@
     <v-card class="mt-4">
       <v-table density="compact">
         <thead>
-          <tr><th>Datum</th><th>Auftrag</th><th class="text-right">Std.</th><th>Beschreibung</th><th>Verr.</th><th></th></tr>
+          <tr><th>Datum</th><th>Auftrag</th><th>Gruppe</th><th class="text-right">Std.</th><th>Beschreibung</th><th>Verr.</th><th></th></tr>
         </thead>
         <tbody>
           <tr v-if="loading"><td colspan="6" class="text-center pa-4"><v-progress-circular indeterminate size="20" /></td></tr>
@@ -98,6 +102,7 @@
           <tr v-for="e in entriesSorted" :key="e.id">
             <td>{{ fmtDate(e.entry_date) }}</td>
             <td>{{ orderTitle(e.order_id) }}</td>
+            <td>{{ e.quote_group_title ?? '—' }}</td>
             <td class="text-right">{{ e.hours }}</td>
             <td>{{ e.description ?? '—' }}</td>
             <td><v-icon :color="e.billable ? 'success' : 'default'" size="small">{{ e.billable ? 'mdi-check' : 'mdi-minus' }}</v-icon></td>
@@ -112,7 +117,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import { api } from '@/api/client'
-import { ordersApi, type Order, type TimeEntry } from '@/api/orders'
+import { ordersApi, type Order, type QuoteGroupSummary, type TimeEntry } from '@/api/orders'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -120,6 +125,7 @@ const saveError = ref('')
 const entries = ref<TimeEntry[]>([])
 const orders = ref<Order[]>([])
 const ordersLoading = ref(false)
+const orderGroups = ref<QuoteGroupSummary[]>([])
 
 // ── Week navigation ──────────────────────────────────────────────────────────
 function getMonday(d: Date): Date {
@@ -166,7 +172,7 @@ function goToday() { weekStart.value = getMonday(new Date()) }
 
 // ── Data ────────────────────────────────────────────────────────────────────
 const today = new Date().toISOString().slice(0, 10)
-const form = ref({ entry_date: today, order_id: null as number | null, hours: '1.00', description: '', billable: true })
+const form = ref({ entry_date: today, order_id: null as number | null, quote_group_id: null as number | null, hours: '1.00', description: '', billable: true })
 
 async function loadEntries() {
   loading.value = true
@@ -178,6 +184,14 @@ async function loadEntries() {
 }
 
 watch(weekStart, loadEntries)
+
+watch(() => form.value.order_id, async (orderId) => {
+  orderGroups.value = []
+  form.value.quote_group_id = null
+  if (orderId) {
+    try { orderGroups.value = await ordersApi.groups(orderId) } catch { /* no groups */ }
+  }
+})
 
 onMounted(async () => {
   ordersLoading.value = true
@@ -198,6 +212,7 @@ const weekBillable = computed(() => entries.value.filter(e => e.billable).reduce
 const orderMap = computed(() => Object.fromEntries(orders.value.map(o => [o.id, `${o.order_no} · ${o.title}`])))
 const orderTitle = (id: number) => orderMap.value[id] ?? `Auftrag #${id}`
 
+
 const fmtDate = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('de-DE')
 
 async function addEntry() {
@@ -209,9 +224,10 @@ async function addEntry() {
       hours: form.value.hours,
       description: form.value.description || undefined,
       billable: form.value.billable,
+      quote_group_id: form.value.quote_group_id ?? undefined,
     })
     await loadEntries()
-    form.value = { entry_date: today, order_id: form.value.order_id, hours: '1.00', description: '', billable: true }
+    form.value = { entry_date: today, order_id: form.value.order_id, quote_group_id: form.value.quote_group_id, hours: '1.00', description: '', billable: true }
   } catch (e) { saveError.value = e instanceof Error ? e.message : 'Fehler' }
   finally { saving.value = false }
 }

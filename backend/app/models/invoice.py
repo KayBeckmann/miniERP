@@ -52,6 +52,7 @@ class InvoiceItem(Base):
     position: Mapped[int] = mapped_column(Integer, nullable=False)
     material_id: Mapped[int | None] = mapped_column(ForeignKey("materials.id"), nullable=True)
     quote_item_id: Mapped[int | None] = mapped_column(ForeignKey("quote_items.id", ondelete="SET NULL"), nullable=True)
+    group_label: Mapped[str | None] = mapped_column(String(200), nullable=True)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     qty: Mapped[Decimal] = mapped_column(Numeric(12, 3), nullable=False)
     unit: Mapped[str] = mapped_column(String(20), nullable=False)

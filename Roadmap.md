@@ -296,6 +296,21 @@ Jede Phase endet mit einem **lauffähigen Stand** (build grün, manueller Smoket
 - [x] PDF: Rechnungsart-Label (Teilrechnung / Abschlagsrechnung / Rechnung) im Dokumenttitel
 - [x] Migration `0010`: `invoice_items.quote_item_id` FK + `invoices.prior_invoiced_total`
 
+### Gruppen in Rechnung + Stunden auf Gruppen buchen ✅ abgeschlossen (2026-05-10)
+- [x] **Gruppen aus dem Angebot in die Rechnung übernehmen**: `InvoiceItem` bekommt das
+      Feld `group_label` (VARCHAR 200, nullable). Beim `POST /orders/{id}/to-invoice` wird
+      das Label aus der `QuoteGroup.title` des zugehörigen `QuoteItem.group_id` übernommen.
+      Positionen ohne Gruppe erhalten `NULL`. PDF-Templates können damit Gruppen-Überschriften
+      und Zwischensummen pro Gruppe rendern.
+- [x] **Stunden auf Gruppen buchen**: `TimeEntry` bekommt `quote_group_id` (FK →
+      `quote_groups.id`, ON DELETE SET NULL). In der Stundenerfassung erscheint ein
+      Gruppen-Picker sobald der ausgewählte Auftrag ein Angebot mit Gruppen hat.
+      `GET /orders/{id}/groups` liefert die Gruppen des Auftrags.
+- [x] **Anzeige in der Wochenansicht**: `TimeEntryRead` enthält `quote_group_title` (aus
+      der eager-geladenen Beziehung); der globale `/time-entries`-Endpoint lädt die
+      Gruppe per `selectinload`, sodass alle Wocheneinträge ihre Gruppe direkt tragen.
+- [x] Migration `0011`: `invoice_items.group_label`, `time_entries.quote_group_id`
+
 ### Bugfix: Stundenerfassung – Werte immer 0 ✅ abgeschlossen (2026-05-10)
 - [x] **Root cause**: FastAPI-Route `GET /orders/time-entries` war hinter `GET /orders/{order_id}`
       registriert → Starlette matched `"time-entries"` als `order_id`-Pfadparameter (int),

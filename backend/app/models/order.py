@@ -42,6 +42,13 @@ class TimeEntry(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     order_id: Mapped[int] = mapped_column(ForeignKey("orders.id", ondelete="CASCADE"), nullable=False, index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    quote_group_id: Mapped[int | None] = mapped_column(ForeignKey("quote_groups.id", ondelete="SET NULL"), nullable=True)
+
+    quote_group: Mapped["QuoteGroup | None"] = relationship("QuoteGroup", foreign_keys=[quote_group_id])  # type: ignore[name-defined]
+
+    @property
+    def quote_group_title(self) -> str | None:
+        return self.quote_group.title if self.quote_group else None
     entry_date: Mapped[date] = mapped_column(Date, nullable=False)
     hours: Mapped[Decimal] = mapped_column(Numeric(5, 2), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)

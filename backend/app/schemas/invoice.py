@@ -44,6 +44,7 @@ class InvoiceItemRead(BaseModel):
     line_total: Decimal
     material_id: int | None
     quote_item_id: int | None = None
+    group_label: str | None = None
 
     model_config = {"from_attributes": True}
 

@@ -13,7 +13,7 @@ from app.models.quote import Quote, QuoteGroup, QuoteItem
 from app.schemas.invoice import InvoiceRead
 from app.schemas.order import (
     OrderCreate, OrderListResponse, OrderRead, OrderUpdate,
-    TimeEntryCreate, TimeEntryRead, TimeEntryUpdate,
+    QuoteGroupSummary, TimeEntryCreate, TimeEntryRead, TimeEntryUpdate,
 )
 from app.schemas.quote import BillableItemRead, CreateInvoiceFromOrderBody
 from app.services import calculation
@@ -89,7 +89,9 @@ async def list_all_time_entries(
         q = q.where(TimeEntry.entry_date >= from_date)
     if to_date:
         q = q.where(TimeEntry.entry_date <= to_date)
-    result = await db.execute(q.order_by(TimeEntry.entry_date.desc()))
+    result = await db.execute(
+        q.options(selectinload(TimeEntry.quote_group)).order_by(TimeEntry.entry_date.desc())
+    )
     return result.scalars().all()
 
 
@@ -204,6 +206,22 @@ async def delete_time_entry(
     await db.commit()
 
 
+@router.get("/{order_id}/groups", response_model=list[QuoteGroupSummary])
+async def get_order_groups(
+    order_id: int,
+    tenant_id: int = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+) -> list[QuoteGroup]:
+    order = await _get_or_404(db, order_id, tenant_id)
+    if not order.quote_id:
+        return []
+    result = await db.execute(
+        select(QuoteGroup).where(QuoteGroup.quote_id == order.quote_id).order_by(QuoteGroup.position)
+    )
+    return result.scalars().all()
+
+
 @router.get("/{order_id}/billable-items", response_model=list[BillableItemRead])
 async def get_billable_items(
     order_id: int,
@@ -289,6 +307,11 @@ async def create_invoice_from_order(
     next_pos = 1
 
     if body.copy_items and order.quote_id:
+        groups_result = await db.execute(
+            select(QuoteGroup).where(QuoteGroup.quote_id == order.quote_id)
+        )
+        group_map: dict[int, str] = {g.id: g.title for g in groups_result.scalars().all()}
+
         all_items_result = await db.execute(
             select(QuoteItem).where(QuoteItem.quote_id == order.quote_id).order_by(QuoteItem.position)
         )
@@ -320,6 +343,7 @@ async def create_invoice_from_order(
                 line_total=qi.line_total,
                 material_id=qi.material_id,
                 quote_item_id=qi.id,
+                group_label=group_map.get(qi.group_id) if qi.group_id else None,
             )
             db.add(ii)
             inv_items.append(ii)

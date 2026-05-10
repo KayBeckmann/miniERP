@@ -32,6 +32,12 @@ export interface BillableItem {
   invoice_no: string | null
 }
 
+export interface QuoteGroupSummary {
+  id: number
+  title: string
+  position: number
+}
+
 export interface TimeEntry {
   id: number
   order_id: number
@@ -42,6 +48,8 @@ export interface TimeEntry {
   hourly_rate: string | null
   billable: boolean
   invoiced: boolean
+  quote_group_id: number | null
+  quote_group_title: string | null
   created_at: string
 }
 
@@ -67,6 +75,7 @@ export const ordersApi = {
   update: (id: number, data: Partial<Order>) => api.patch<Order>(`/orders/${id}`, data),
   delete: (id: number) => api.delete<void>(`/orders/${id}`),
   timeEntries: (orderId: number) => api.get<TimeEntry[]>(`/orders/${orderId}/time`),
+  groups: (orderId: number) => api.get<QuoteGroupSummary[]>(`/orders/${orderId}/groups`),
   addTime: (orderId: number, data: Partial<TimeEntry> & { entry_date: string; hours: string }) =>
     api.post<TimeEntry>(`/orders/${orderId}/time`, data),
   updateTime: (orderId: number, entryId: number, data: Partial<TimeEntry>) =>

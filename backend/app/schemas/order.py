@@ -53,12 +53,21 @@ class OrderListResponse(BaseModel):
     total: int
 
 
+class QuoteGroupSummary(BaseModel):
+    id: int
+    title: str
+    position: int
+
+    model_config = {"from_attributes": True}
+
+
 class TimeEntryCreate(BaseModel):
     entry_date: dt.date
     hours: Decimal
     description: str | None = None
     hourly_rate: Decimal | None = None
     billable: bool = True
+    quote_group_id: int | None = None
 
 
 class TimeEntryUpdate(BaseModel):
@@ -67,6 +76,7 @@ class TimeEntryUpdate(BaseModel):
     description: str | None = None
     hourly_rate: Decimal | None = None
     billable: bool | None = None
+    quote_group_id: int | None = None
 
 
 class TimeEntryRead(BaseModel):
@@ -79,6 +89,8 @@ class TimeEntryRead(BaseModel):
     hourly_rate: Decimal | None
     billable: bool
     invoiced: bool
+    quote_group_id: int | None
+    quote_group_title: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
