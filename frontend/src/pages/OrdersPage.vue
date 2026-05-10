@@ -164,25 +164,27 @@
             <v-col v-if="invoiceForm.copy_items && billableItems.length > 0 && invoiceForm.kind !== 'final'" cols="12">
               <div class="text-subtitle-2 mb-1">Positionen auswählen</div>
               <v-card variant="outlined" class="pa-1" style="max-height:220px;overflow-y:auto;">
-                <v-list density="compact" select-strategy="multiple" v-model:selected="selectedItemIds">
-                  <v-list-item
-                    v-for="item in billableItems"
-                    :key="item.id"
-                    :value="item.id"
+                <div
+                  v-for="item in billableItems"
+                  :key="item.id"
+                  class="d-flex align-start pa-1"
+                  :style="item.already_invoiced ? 'opacity:0.5' : ''"
+                >
+                  <v-checkbox-btn
+                    :model-value="selectedItemIds.includes(item.id)"
                     :disabled="item.already_invoiced"
-                  >
-                    <template #prepend="{ isSelected }">
-                      <v-checkbox-btn :model-value="isSelected" :disabled="item.already_invoiced" />
-                    </template>
-                    <v-list-item-title :class="item.already_invoiced ? 'text-medium-emphasis text-decoration-line-through' : ''">
-                      {{ item.description }}
-                    </v-list-item-title>
-                    <v-list-item-subtitle>
+                    density="compact"
+                    class="mr-2 flex-shrink-0"
+                    @update:model-value="(v: boolean) => v ? selectedItemIds.push(item.id) : selectedItemIds.splice(selectedItemIds.indexOf(item.id), 1)"
+                  />
+                  <div>
+                    <div :class="item.already_invoiced ? 'text-decoration-line-through text-medium-emphasis' : ''">{{ item.description }}</div>
+                    <div class="text-caption text-medium-emphasis">
                       {{ parseFloat(item.qty).toFixed(2) }} {{ item.unit }} × {{ parseFloat(item.unit_price).toFixed(2) }} € = {{ parseFloat(item.line_total).toFixed(2) }} €
                       <span v-if="item.already_invoiced" class="ml-1 text-warning">(bereits in {{ item.invoice_no }})</span>
-                    </v-list-item-subtitle>
-                  </v-list-item>
-                </v-list>
+                    </div>
+                  </div>
+                </div>
               </v-card>
             </v-col>
 
